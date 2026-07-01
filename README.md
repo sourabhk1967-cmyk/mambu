@@ -178,6 +178,24 @@ Netlify can publish the React app publicly. The Playwright-powered Express backe
 
 The frontend calls `GET /api/deployment` before login and shows whether the public app shell is live, whether Express/Playwright is connected, and that no OpenAI API key is required. If `VITE_API_URL` is not set, Netlify returns a JSON fallback explaining that the persistent backend URL is missing instead of serving an HTML page to API calls.
 
+## Render deployment
+
+Render may install Node packages in production mode, which skips frontend dev dependencies such as Vite. Use the dedicated Render script so the frontend build tools are installed before `vite build` runs.
+
+```text
+Root Directory: leave empty
+Build Command: npm run build:render
+Start Command: npm run start
+```
+
+Set `NODE_VERSION=20`, `NODE_ENV=production`, `PUBLIC_APP_URL`, `CORS_ORIGIN`, `JWT_SECRET`, and Firebase Admin credentials in Render. For persistent browser/session storage, add a Render disk mounted at `/var/data` and set:
+
+```text
+KYROVIA_DATA_DIR=/var/data
+PLAYWRIGHT_USER_DATA_DIR=/var/data/playwright-profile
+WHATSAPP_AUTH_DIR=/var/data/whatsapp-auth
+```
+
 ## Cloudflare CDN assets
 
 Set `VITE_CLOUDFLARE_CDN_URL` before building to make the production frontend load compiled JS, CSS, images, and fonts from a Cloudflare-backed CDN/custom domain.
