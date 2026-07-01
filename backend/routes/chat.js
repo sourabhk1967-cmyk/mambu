@@ -34,8 +34,9 @@ const { createConversationRecord, readWorkspace, writeWorkspace } = require('../
 const GenerationResultStore = require('../services/generationResultStore');
 
 const router = express.Router();
+const dataDir = path.resolve(process.cwd(), process.env.KYROVIA_DATA_DIR || './data');
 const generationResults = new GenerationResultStore({
-  storageDir: path.resolve(__dirname, '../data/generation-results')
+  storageDir: path.join(dataDir, 'generation-results')
 });
 const FALLBACK_FILE_PROMPT = 'Please review the attached file.';
 const FALLBACK_FILES_PROMPT = 'Please review the attached files.';

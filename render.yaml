@@ -1,0 +1,84 @@
+services:
+  - type: web
+    name: kyrovia-1
+    runtime: node
+    plan: free
+    region: ohio
+    branch: main
+    buildCommand: npm run build:render
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: NODE_ENV
+        value: production
+      - key: PUBLIC_APP_URL
+        value: https://kyrovia-1.onrender.com
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: JSON_LIMIT
+        value: 80mb
+      - key: RATE_LIMIT_WINDOW_MS
+        value: 900000
+      - key: RATE_LIMIT_MAX
+        value: 300
+      - key: AUTH_RATE_LIMIT_MAX
+        value: 100
+      - key: AI_RATE_LIMIT_MAX
+        value: 40
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 8h
+      - key: JWT_ISSUER
+        value: kyrovia
+      - key: JWT_AUDIENCE
+        value: kyrovia-client
+      - key: FIREBASE_PROJECT_ID
+        value: kyrovia-8dd36
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: GOOGLE_CSE_ID
+        sync: false
+      - key: GOOGLE_CSE_URL
+        value: https://cse.google.com/cse
+      - key: CHATGPT_URL
+        value: https://chatgpt.com/
+      - key: PLAYWRIGHT_HEADLESS
+        value: true
+      - key: PLAYWRIGHT_USER_DATA_DIR
+        value: ./playwright-profile
+      - key: PLAYWRIGHT_TIMEOUT_MS
+        value: 300000
+      - key: PLAYWRIGHT_VIEWPORT_WIDTH
+        value: 1280
+      - key: PLAYWRIGHT_VIEWPORT_HEIGHT
+        value: 800
+      - key: PLAYWRIGHT_RECOVER_PROFILE_LOCK
+        value: true
+      - key: CHAT_MAX_CONCURRENT_TABS
+        value: 1
+      - key: CHAT_PARALLEL_TABS
+        value: false
+      - key: CHAT_QUEUE_MAX_PENDING
+        value: 25
+      - key: CHAT_QUEUE_WAIT_TIMEOUT_MS
+        value: 900000
+      - key: MAX_MESSAGE_LENGTH
+        value: 8000
+      - key: MAX_UPLOAD_BYTES
+        value: 10485760
+      - key: MAX_UPLOAD_FILES
+        value: 4
+      - key: KYROVIA_DATA_DIR
+        value: ./data
+      - key: WHATSAPP_AUTH_DIR
+        value: ./data/whatsapp-auth
+      - key: WHATSAPP_AUTO_RECONNECT
+        value: true
+      - key: WHATSAPP_AUTO_REPLY
+        value: false
+      - key: WHATSAPP_REPLY_GROUPS
+        value: false

@@ -188,7 +188,25 @@ Build Command: npm run build:render
 Start Command: npm run start
 ```
 
-Set `NODE_VERSION=20`, `NODE_ENV=production`, `PUBLIC_APP_URL`, `CORS_ORIGIN`, `JWT_SECRET`, and Firebase Admin credentials in Render. For persistent browser/session storage, add a Render disk mounted at `/var/data` and set:
+This repository also includes `render.yaml` for a Git-backed Render Blueprint. Create a new Blueprint from `sourabhk1967-cmyk/kyrovia` and Render will create the `kyrovia-1` free web service with:
+
+```text
+Backend URL: https://kyrovia-1.onrender.com
+API URL: https://kyrovia-1.onrender.com/api
+Health check: /api/health
+```
+
+Netlify's fallback message, `Kyrovia is public on Netlify. Set VITE_API_URL...`, means the frontend was built without a persistent backend URL. The tracked production env now points Netlify builds to:
+
+```text
+VITE_API_URL=https://kyrovia-1.onrender.com/api
+```
+
+If you override environment variables in Netlify, set the same value there and redeploy the Netlify site.
+
+Set `NODE_VERSION=20`, `NODE_ENV=production`, `PUBLIC_APP_URL`, `CORS_ORIGIN`, `JWT_SECRET`, and Firebase Admin credentials in Render. The Blueprint generates `JWT_SECRET`, but you must paste `FIREBASE_SERVICE_ACCOUNT_JSON` manually in Render because it is a private secret.
+
+Render Free web services are useful for a public demo, but they spin down when idle and lose local filesystem changes on restart. That means ChatGPT browser login/session data, uploaded images, WhatsApp auth, and saved workspaces are not durable on the free tier. For persistent browser/session storage, upgrade to a paid Render service with a disk mounted at `/var/data` and set:
 
 ```text
 KYROVIA_DATA_DIR=/var/data
