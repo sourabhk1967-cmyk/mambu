@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: kyrovia-1
+    name: kyrovia-2
     runtime: node
     plan: free
     region: ohio
@@ -15,7 +15,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: PUBLIC_APP_URL
-        value: https://kyrovia-1.onrender.com
+        value: https://kyrovia-2.onrender.com
       - key: CORS_ORIGIN
         value: "*"
       - key: JSON_LIMIT

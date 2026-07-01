@@ -188,18 +188,18 @@ Build Command: npm run build:render
 Start Command: npm run start
 ```
 
-This repository also includes `render.yaml` for a Git-backed Render Blueprint. Create a new Blueprint from `sourabhk1967-cmyk/kyrovia` and Render will create the `kyrovia-1` free web service with:
+This repository also includes `render.yaml` for a Git-backed Render Blueprint. Create a new Blueprint from `sourabhk1967-cmyk/kyrovia` and Render will create the `kyrovia-2` free web service with:
 
 ```text
-Backend URL: https://kyrovia-1.onrender.com
-API URL: https://kyrovia-1.onrender.com/api
+Backend URL: https://kyrovia-2.onrender.com
+API URL: https://kyrovia-2.onrender.com/api
 Health check: /api/health
 ```
 
 Netlify's fallback message, `Kyrovia is public on Netlify. Set VITE_API_URL...`, means the frontend was built without a persistent backend URL. The tracked production env now points Netlify builds to:
 
 ```text
-VITE_API_URL=https://kyrovia-1.onrender.com/api
+VITE_API_URL=https://kyrovia-2.onrender.com/api
 ```
 
 If you override environment variables in Netlify, set the same value there and redeploy the Netlify site.
