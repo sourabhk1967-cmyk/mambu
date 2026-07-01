@@ -71,8 +71,7 @@
 .brand,
 .headingGroup,
 .googleButton,
-.error,
-.deployStatus {
+.error {
   position: relative;
   z-index: 1;
 }
@@ -197,48 +196,6 @@
   padding: 12px 14px;
   font-size: 0.88rem;
   line-height: 1.45;
-}
-
-.deployStatus {
-  display: grid;
-  gap: 9px;
-  margin-top: 18px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 16px;
-  background: rgba(248, 250, 252, 0.82);
-  color: #334155;
-  padding: 13px 14px;
-  font-size: 0.82rem;
-  font-weight: 750;
-}
-
-.deployStatus div {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 9px;
-}
-
-.deployStatus span:last-child {
-  overflow-wrap: anywhere;
-}
-
-.statusDotGood,
-.statusDotWarn {
-  width: 9px;
-  height: 9px;
-  flex: 0 0 9px;
-  border-radius: 999px;
-}
-
-.statusDotGood {
-  background: #10b981;
-  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.14);
-}
-
-.statusDotWarn {
-  background: #f59e0b;
-  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.16);
 }
 
 @media (max-width: 520px) {

@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 
 import kyroviaLogo from '../assets/kyrovia-logo.png';
 import { signInWithGoogle } from '../services/firebaseAuth';
-import { deploymentStatus } from '../services/api';
 import styles from './Login.module.css';
 
 function googleErrorMessage(error) {
@@ -36,42 +35,10 @@ function googleErrorMessage(error) {
 function Login({ initialError = '', onGoogleLogin }) {
   const [error, setError] = useState(initialError);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [deployment, setDeployment] = useState(null);
 
   useEffect(() => {
     setError(initialError);
   }, [initialError]);
-
-  useEffect(() => {
-    let mounted = true;
-
-    async function loadDeploymentStatus() {
-      try {
-        const status = await deploymentStatus();
-
-        if (mounted) {
-          setDeployment(status);
-        }
-      } catch (_error) {
-        if (mounted) {
-          setDeployment({
-            ok: false,
-            public: window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1',
-            netlifyFrontendReady: true,
-            browser: {
-              ready: false
-            }
-          });
-        }
-      }
-    }
-
-    loadDeploymentStatus();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
 
   async function handleGoogleSignIn() {
     if (googleLoading) {
@@ -128,23 +95,6 @@ function Login({ initialError = '', onGoogleLogin }) {
         </button>
 
         {error ? <p className={styles.error}>{error}</p> : null}
-
-        {deployment ? (
-          <section className={styles.deployStatus} aria-label="Public deployment status">
-            <div>
-              <span className={deployment.public ? styles.statusDotGood : styles.statusDotWarn} />
-              <span>{deployment.public ? 'Public app ready' : 'Local preview'}</span>
-            </div>
-            <div>
-              <span className={deployment.browser?.ready ? styles.statusDotGood : styles.statusDotWarn} />
-              <span>{deployment.browser?.ready ? 'Express and Playwright online' : 'Backend browser waiting'}</span>
-            </div>
-            <div>
-              <span className={styles.statusDotGood} />
-              <span>No OpenAI API key required</span>
-            </div>
-          </section>
-        ) : null}
       </section>
     </main>
   );
