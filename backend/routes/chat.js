@@ -1052,6 +1052,15 @@ router.post('/send', parseSendRequest, async (req, res, next) => {
     res.set('X-Kyrovia-Generation-Session-Id', generationSessionId);
     upload = await writeTempFiles(files);
     const service = getChatService(req);
+    if (!service?.ready) {
+      throw createHttpError(
+        503,
+        service?.lastStartupError
+          ? `Kyrovia browser is starting or unavailable. ${service.lastStartupError}`
+          : 'Kyrovia browser is starting. Please retry in a moment.'
+      );
+    }
+
     const promptPlan = preparePromptForChat(message, files, intentInput === 'image-generation');
     let queueInfo = null;
     let lastStreamedMessage = '';
