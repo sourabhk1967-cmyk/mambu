@@ -8,7 +8,7 @@
     "dev": "nodemon server.js",
     "start": "node server.js",
     "test": "node --test",
-    "playwright:install": "npx playwright install --with-deps chromium"
+    "playwright:install": "playwright install chromium"
   },
   "nodemonConfig": {
     "watch": [
