@@ -312,7 +312,7 @@ class ChatGPTService {
     } catch (installError) {
       const serviceError = createServiceError(
         503,
-        `Playwright browser executable is missing and automatic install failed. Build with "npm --prefix backend run playwright:install:deps", redeploy, then restart the backend. Install error: ${this.formatStartupError(installError)}`
+        `Playwright browser executable is missing and automatic install failed. Build with "npm --prefix backend run playwright:install", redeploy, then restart the backend. Install error: ${this.formatStartupError(installError)}`
       );
       serviceError.cause = installError;
       throw serviceError;

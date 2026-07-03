@@ -8,7 +8,7 @@
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
     "build": "npm --prefix frontend install --include=dev && npm --prefix frontend run build",
-    "build:render": "npm run install:render && npm --prefix backend run playwright:install:deps && npm run build",
+    "build:render": "npm run install:render && npm --prefix backend run playwright:install && npm run build",
     "build:netlify": "npm --prefix frontend install && npm --prefix frontend run build",
     "generate:secret": "node -e \"console.log(require('crypto').randomBytes(48).toString('base64url'))\"",
     "start": "npm --prefix backend start",
