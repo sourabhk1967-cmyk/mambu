@@ -7,6 +7,7 @@ COPY . .
 # Note: Since the official Playwright Docker image already contains Chromium pre-installed
 # at /ms-playwright, we do not need to download it again.
 RUN npm run install:render
+RUN npm --prefix backend exec -- playwright install --with-deps chromium
 RUN npm run build
 # Expose the default backend port
 EXPOSE 5050
