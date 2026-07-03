@@ -2,6 +2,14 @@ const fs = require('fs/promises');
 const path = require('path');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
+
+if (
+  !process.env.PLAYWRIGHT_BROWSERS_PATH &&
+  (process.env.RENDER || process.env.RENDER_EXTERNAL_URL || process.env.RENDER_SERVICE_ID)
+) {
+  process.env.PLAYWRIGHT_BROWSERS_PATH = '0';
+}
+
 const { chromium } = require('playwright');
 const sharp = require('sharp');
 const { extractInteractiveVisual } = require('./interactiveVisual');
@@ -297,8 +305,8 @@ class ChatGPTService {
 
     const backendDir = path.resolve(__dirname, '..');
     const execArgs = playwrightCli
-      ? [playwrightCli, 'install', 'chromium']
-      : [require.resolve('playwright-core/cli'), 'install', 'chromium'];
+      ? [playwrightCli, 'install', 'chromium', 'chromium-headless-shell']
+      : [require.resolve('playwright-core/cli'), 'install', 'chromium', 'chromium-headless-shell'];
 
     try {
       await execFileAsync(process.execPath, execArgs, {
