@@ -49,7 +49,7 @@ services:
       - key: PLAYWRIGHT_HEADLESS
         value: true
       - key: PLAYWRIGHT_BROWSERS_PATH
-        value: /ms-playwright
+        value: "0"
       - key: PLAYWRIGHT_USER_DATA_DIR
         value: ./playwright-profile
       - key: PLAYWRIGHT_TIMEOUT_MS
