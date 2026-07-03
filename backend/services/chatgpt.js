@@ -638,7 +638,11 @@ Get-CimInstance Win32_Process |
 
   async sendMessageNow(prompt, files = [], modelId = DEFAULT_MODEL_ID, options = {}) {
     if (!this.ready) {
-      throw this.createNotReadyError();
+      await this.init().catch(() => undefined);
+
+      if (!this.ready) {
+        throw this.createNotReadyError();
+      }
     }
 
     if (typeof prompt !== 'string' || !prompt.trim()) {
@@ -652,94 +656,136 @@ Get-CimInstance Win32_Process |
     const target = this.resolveModelTarget(modelId);
 
     const page = await this.createRequestPage();
-    try {
-      await this.openRequestConversation(page, options);
-
-      await this.assertChatNotBlocked(page);
-      await this.ensureReadyForPrompt(page);
-
-      let composer = await this.waitForComposer(page);
-      if (!composer) {
-        await page
-          .reload({
-            waitUntil: 'domcontentloaded',
-            timeout: Math.min(this.timeoutMs, 60000)
-          })
-          .catch(() => undefined);
-        await this.assertChatNotBlocked(page);
-        composer = await this.waitForComposer(page, Math.min(this.timeoutMs, 60000));
-      }
-
-      if (!composer) {
-        throw createServiceError(
-          409,
-          'Kyrovia is not signed in. Complete sign-in in the Playwright browser window, then retry.'
+    let requestTimedOut = false;
+    let requestTimeoutId = null;
+    const requestTimeoutMs = Math.max(30000, Math.min(this.timeoutMs, 180000));
+    const timeoutPromise = new Promise((_, reject) => {
+      requestTimeoutId = setTimeout(() => {
+        requestTimedOut = true;
+        const timeoutError = createServiceError(
+          504,
+          'Kyrovia browser request timed out. The backend browser was restarted; please send the message again.'
         );
-      }
+        this.resetBrowserAfterRequestTimeout(page, timeoutError).finally(() => reject(timeoutError));
+      }, requestTimeoutMs);
+      requestTimeoutId.unref?.();
+    });
 
-      this.lastBrowserStatus = {
-        loggedIn: true,
-        blocked: false,
-        blockerText: ''
-      };
-      const previousAssistantCount = await page.locator(ASSISTANT_SELECTOR).count();
-      await this.attachFiles(page, files);
-      const previousPageImageKeys = await this.getVisibleContentImageKeys(page.locator(PAGE_IMAGE_SCOPE_SELECTOR).first());
-      const previousDownloadKeys = await this.getDownloadCandidateKeys(page);
-      const expectImage = options.expectImage || IMAGE_GENERATION_INTENT_RE.test(prompt);
-      await this.fillComposer(page, composer, prompt.trim());
-      await this.submitPrompt(page);
-
-      const assistant = await this.waitForAssistantResponseStarted(
-        page,
-        previousAssistantCount,
-        previousPageImageKeys,
-        expectImage
-      );
-      const response = await this.waitForStableResponse(
-        page,
-        assistant,
-        previousPageImageKeys,
-        previousDownloadKeys,
-        DOWNLOAD_INTENT_RE.test(prompt),
-        ARTIFACT_INTENT_RE.test(prompt),
-        VISUAL_RESPONSE_INTENT_RE.test(prompt),
-        expectImage,
-        options.onResponseUpdate
-          ? async (update) => {
-              await options.onResponseUpdate({
-                ...update,
-                conversationUrl: page.url(),
-                model: target.id,
-                provider: target.provider
-              });
-            }
-          : null
-      );
-
-      const conversationUrl = page.url();
-      if (options.sessionKey && this.isConversationUrl(conversationUrl)) {
-        this.sessionUrls.set(options.sessionKey, conversationUrl);
-      }
-
-      return {
-        text: response.text,
-        images: response.images,
-        interactiveHtml: response.interactiveHtml,
-        files: response.files,
-        sources: response.sources,
-        artifacts: response.artifacts,
-        conversationUrl,
-        model: target.id,
-        provider: target.provider,
-        scrapedAt: new Date().toISOString()
-      };
+    try {
+      return await Promise.race([
+        this.sendMessageOnPage(page, prompt, files, target, options),
+        timeoutPromise
+      ]);
     } catch (error) {
-      await this.recoverBrowserAfterSendError(page);
+      if (!requestTimedOut) {
+        await this.recoverBrowserAfterSendError(page);
+      }
       throw error;
     } finally {
+      if (requestTimeoutId) {
+        clearTimeout(requestTimeoutId);
+      }
       await this.closeRequestPage(page);
     }
+  }
+
+  async sendMessageOnPage(page, prompt, files, target, options = {}) {
+    await this.openRequestConversation(page, options);
+
+    await this.assertChatNotBlocked(page);
+    await this.ensureReadyForPrompt(page);
+
+    let composer = await this.waitForComposer(page);
+    if (!composer) {
+      await page
+        .reload({
+          waitUntil: 'domcontentloaded',
+          timeout: Math.min(this.timeoutMs, 60000)
+        })
+        .catch(() => undefined);
+      await this.assertChatNotBlocked(page);
+      composer = await this.waitForComposer(page, Math.min(this.timeoutMs, 60000));
+    }
+
+    if (!composer) {
+      throw createServiceError(
+        409,
+        'Kyrovia is not signed in. Complete sign-in in the Playwright browser window, then retry.'
+      );
+    }
+
+    this.lastBrowserStatus = {
+      loggedIn: true,
+      blocked: false,
+      blockerText: ''
+    };
+    const previousAssistantCount = await page.locator(ASSISTANT_SELECTOR).count();
+    await this.attachFiles(page, files);
+    const previousPageImageKeys = await this.getVisibleContentImageKeys(page.locator(PAGE_IMAGE_SCOPE_SELECTOR).first());
+    const previousDownloadKeys = await this.getDownloadCandidateKeys(page);
+    const expectImage = options.expectImage || IMAGE_GENERATION_INTENT_RE.test(prompt);
+    await this.fillComposer(page, composer, prompt.trim());
+    await this.submitPrompt(page);
+
+    const assistant = await this.waitForAssistantResponseStarted(
+      page,
+      previousAssistantCount,
+      previousPageImageKeys,
+      expectImage
+    );
+    const response = await this.waitForStableResponse(
+      page,
+      assistant,
+      previousPageImageKeys,
+      previousDownloadKeys,
+      DOWNLOAD_INTENT_RE.test(prompt),
+      ARTIFACT_INTENT_RE.test(prompt),
+      VISUAL_RESPONSE_INTENT_RE.test(prompt),
+      expectImage,
+      options.onResponseUpdate
+        ? async (update) => {
+            await options.onResponseUpdate({
+              ...update,
+              conversationUrl: page.url(),
+              model: target.id,
+              provider: target.provider
+            });
+          }
+        : null
+    );
+
+    const conversationUrl = page.url();
+    if (options.sessionKey && this.isConversationUrl(conversationUrl)) {
+      this.sessionUrls.set(options.sessionKey, conversationUrl);
+    }
+
+    return {
+      text: response.text,
+      images: response.images,
+      interactiveHtml: response.interactiveHtml,
+      files: response.files,
+      sources: response.sources,
+      artifacts: response.artifacts,
+      conversationUrl,
+      model: target.id,
+      provider: target.provider,
+      scrapedAt: new Date().toISOString()
+    };
+  }
+
+  async resetBrowserAfterRequestTimeout(page, error) {
+    console.warn(error.message);
+    this.ready = false;
+    this.sessionUrls.clear();
+    this.activeRequestPages.clear();
+
+    await page?.close?.().catch(() => undefined);
+    await this.context?.close?.().catch((closeError) => {
+      console.warn(`Kyrovia browser context did not close after timeout: ${closeError.message}`);
+    });
+
+    this.context = null;
+    this.page = null;
   }
 
   async createRequestPage() {
