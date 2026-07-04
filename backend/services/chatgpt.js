@@ -585,8 +585,12 @@ Get-CimInstance Win32_Process |
         const transientComposerFailure =
           error?.status === 409 && /not signed in|composer is available/i.test(String(error.message || ''));
         const transientResponseTimeout = error?.status === 504;
+        const transientBrowserClosed = this.isBrowserClosedError(error) || error?.transientBrowserClosed;
 
-        if (attempt >= maxAttempts || (!transientComposerFailure && !transientResponseTimeout)) {
+        if (
+          attempt >= maxAttempts ||
+          (!transientComposerFailure && !transientResponseTimeout && !transientBrowserClosed)
+        ) {
           throw error;
         }
 
@@ -685,6 +689,11 @@ Get-CimInstance Win32_Process |
         timeoutPromise
       ]);
     } catch (error) {
+      if (!requestTimedOut && this.isBrowserClosedError(error)) {
+        await this.resetBrowserAfterUnexpectedClose(page, error);
+        throw this.createBrowserClosedDuringRequestError(error);
+      }
+
       if (!requestTimedOut) {
         await this.recoverBrowserAfterSendError(page);
       }
@@ -781,6 +790,26 @@ Get-CimInstance Win32_Process |
     };
   }
 
+  isBrowserClosedError(error) {
+    const message = String(error?.message || error || '');
+    return (
+      error?.name === 'TargetClosedError' ||
+      /Target page, context or browser has been closed|Target closed|Browser has been closed|browser context has been closed|Protocol error.*Target closed/i.test(
+        message
+      )
+    );
+  }
+
+  createBrowserClosedDuringRequestError(error) {
+    const serviceError = createServiceError(
+      503,
+      'Kyrovia browser closed while generating the reply. The backend restarted the browser session and retried the message.'
+    );
+    serviceError.cause = error;
+    serviceError.transientBrowserClosed = true;
+    return serviceError;
+  }
+
   async resetBrowserAfterRequestTimeout(page, error) {
     console.warn(error.message);
     this.ready = false;
@@ -791,6 +820,19 @@ Get-CimInstance Win32_Process |
     await this.context?.close?.().catch((closeError) => {
       console.warn(`Kyrovia browser context did not close after timeout: ${closeError.message}`);
     });
+
+    this.context = null;
+    this.page = null;
+  }
+
+  async resetBrowserAfterUnexpectedClose(page, error) {
+    console.warn(`Kyrovia browser closed during request: ${this.formatStartupError(error)}`);
+    this.ready = false;
+    this.sessionUrls.clear();
+    this.activeRequestPages.clear();
+
+    await page?.close?.().catch(() => undefined);
+    await this.context?.close?.().catch(() => undefined);
 
     this.context = null;
     this.page = null;

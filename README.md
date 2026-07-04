@@ -49,7 +49,7 @@ Computer mode uses the configured Google Programmable Search Engine. The current
 - Google login authenticates visitors to Kyrovia.
 - Username/password login is not supported.
 - The backend ChatGPT login is a separate, shared browser session.
-- Kyrovia can process up to 10 different account/session conversations in parallel, with one temporary browser tab per active request.
+- Kyrovia uses one persistent Chromium workspace by default, so the backend reuses the same signed-in ChatGPT profile on your machine.
 - Requests from the same account/session conversation stay ordered so simultaneous clicks cannot mix replies into the wrong chat.
 - Kyrovia keeps a separate conversation URL for each Kyrovia account, login session, and conversation.
 - ChatGPT cookies remain in `backend/playwright-profile`.
@@ -235,7 +235,7 @@ This browser mode needs a persistent machine, persistent disk, and usually a des
 - `PLAYWRIGHT_HEADLESS=true` only after the saved session is confirmed;
 - the public hostname added to Firebase Authorized Domains.
 
-Serverless platforms and hosts without an interactive browser are not suitable for the first ChatGPT login. `CHAT_MAX_CONCURRENT_TABS=10` caps parallel browser work, `CHAT_QUEUE_MAX_PENDING` controls the waiting-room size, `CHAT_QUEUE_WAIT_TIMEOUT_MS` controls how long a queued request may wait, and `VITE_AI_TIMEOUT_MS` keeps the frontend connected to long-running queued requests. `PLAYWRIGHT_RECOVER_PROFILE_LOCK=true` lets Kyrovia close stale Chromium processes that are using the exact app-owned `PLAYWRIGHT_USER_DATA_DIR` after an unclean restart. Parallel tabs share the signed-in browser profile but retain separate Kyrovia account/session/conversation mappings.
+Serverless platforms and hosts without an interactive browser are not suitable for the first ChatGPT login. `CHAT_MAX_CONCURRENT_TABS=1` and `CHAT_PARALLEL_TABS=false` keep requests serialized through the same app-owned Chromium profile, which is the recommended laptop mode when you sign in once through the visible Playwright browser. `CHAT_QUEUE_MAX_PENDING` controls the waiting-room size, `CHAT_QUEUE_WAIT_TIMEOUT_MS` controls how long a queued request may wait, and `VITE_AI_TIMEOUT_MS` keeps the frontend connected to long-running queued requests. `PLAYWRIGHT_RECOVER_PROFILE_LOCK=true` lets Kyrovia close stale Chromium processes that are using the exact app-owned `PLAYWRIGHT_USER_DATA_DIR` after an unclean restart. Advanced deployments can opt in to parallel tabs by setting `CHAT_PARALLEL_TABS=true` and raising `CHAT_MAX_CONCURRENT_TABS`; those tabs share the signed-in browser profile but retain separate Kyrovia account/session/conversation mappings.
 
 ## Useful endpoints
 

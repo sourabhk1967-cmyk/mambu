@@ -149,3 +149,40 @@ test('transient response timeout retries once in a fresh request tab', async () 
   assert.equal(result.text, 'recovered');
   assert.deepEqual(attempts, [false, true]);
 });
+
+test('closed browser target during generation is exposed and retried', async () => {
+  const service = new ChatGPTService();
+  const attempts = [];
+
+  service.sendMessageNow = async (_prompt, _files, _modelId, options) => {
+    attempts.push(options.freshChat);
+
+    if (attempts.length === 1) {
+      const error = service.createBrowserClosedDuringRequestError(
+        new Error('page.waitForTimeout: Target page, context or browser has been closed')
+      );
+      throw error;
+    }
+
+    return { text: 'recovered after browser restart' };
+  };
+
+  const result = await service.sendMessageWithRetry('hello', [], 'nova-instant', {
+    freshChat: false
+  });
+
+  assert.equal(result.text, 'recovered after browser restart');
+  assert.deepEqual(attempts, [false, true]);
+});
+
+test('raw closed browser target errors are recognized', () => {
+  const service = new ChatGPTService();
+
+  assert.equal(
+    service.isBrowserClosedError(
+      new Error('page.waitForTimeout: Target page, context or browser has been closed')
+    ),
+    true
+  );
+  assert.equal(service.isBrowserClosedError(new Error('Timed out waiting for Kyrovia response')), false);
+});
