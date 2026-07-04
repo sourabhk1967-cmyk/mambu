@@ -5,6 +5,7 @@ node_modules/
 dist/
 coverage/
 playwright-profile/
+backend/.playwright-browsers/
 backend/serviceAccountKey.json
 backend/*service-account*.json
 backend/data/

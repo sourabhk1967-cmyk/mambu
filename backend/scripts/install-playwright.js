@@ -2,12 +2,17 @@ const { spawnSync } = require('child_process');
 const path = require('path');
 
 const hostedRenderRuntime = Boolean(process.env.RENDER || process.env.RENDER_EXTERNAL_URL || process.env.RENDER_SERVICE_ID);
+const renderPlaywrightBrowsersPath = path.resolve(__dirname, '..', '.playwright-browsers');
 
-if (hostedRenderRuntime && (!process.env.PLAYWRIGHT_BROWSERS_PATH || process.env.PLAYWRIGHT_BROWSERS_PATH === '0')) {
-  process.env.PLAYWRIGHT_BROWSERS_PATH = '/opt/render/.cache/ms-playwright';
+if (
+  hostedRenderRuntime &&
+  (!process.env.PLAYWRIGHT_BROWSERS_PATH ||
+    process.env.PLAYWRIGHT_BROWSERS_PATH === '0' ||
+    process.env.PLAYWRIGHT_BROWSERS_PATH === '/opt/render/.cache/ms-playwright')
+) {
+  process.env.PLAYWRIGHT_BROWSERS_PATH = renderPlaywrightBrowsersPath;
 } else if (!process.env.PLAYWRIGHT_BROWSERS_PATH) {
-  process.env.PLAYWRIGHT_BROWSERS_PATH =
-    hostedRenderRuntime ? '/opt/render/.cache/ms-playwright' : '0';
+  process.env.PLAYWRIGHT_BROWSERS_PATH = hostedRenderRuntime ? renderPlaywrightBrowsersPath : '0';
 }
 
 const playwrightPackageDir = path.dirname(require.resolve('playwright/package.json'));

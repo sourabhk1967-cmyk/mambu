@@ -49,7 +49,7 @@ services:
       - key: PLAYWRIGHT_HEADLESS
         value: true
       - key: PLAYWRIGHT_BROWSERS_PATH
-        value: /opt/render/.cache/ms-playwright
+        value: /opt/render/project/src/backend/.playwright-browsers
       - key: PLAYWRIGHT_USER_DATA_DIR
         value: ./playwright-profile
       - key: PLAYWRIGHT_TIMEOUT_MS

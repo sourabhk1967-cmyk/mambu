@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const test = require('node:test');
 
@@ -119,31 +120,35 @@ test('detects Chromium persistent profile lock startup errors', () => {
   assert.equal(service.isProfileLockError(new Error('Navigation timed out')), false);
 });
 
-test('hosted runtime maps Playwright browser path zero to the Render cache path', () => {
-  const result = spawnSync(
-    process.execPath,
-    [
-      '-e',
-      [
-        "process.env.PLAYWRIGHT_BROWSERS_PATH = '0';",
-        "process.env.RENDER = '1';",
-        "require('./chatgpt');",
-        'console.log(process.env.PLAYWRIGHT_BROWSERS_PATH);'
-      ].join('')
-    ],
-    {
-      cwd: __dirname,
-      env: {
-        ...process.env,
-        PLAYWRIGHT_BROWSERS_PATH: '0',
-        RENDER: '1'
-      },
-      encoding: 'utf8'
-    }
-  );
+test('hosted runtime maps stale Render Playwright browser paths to the deployed project path', () => {
+  const expectedPath = path.resolve(__dirname, '..', '.playwright-browsers');
 
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stdout.trim(), '/opt/render/.cache/ms-playwright');
+  for (const stalePath of ['0', '/opt/render/.cache/ms-playwright']) {
+    const result = spawnSync(
+      process.execPath,
+      [
+        '-e',
+        [
+          `process.env.PLAYWRIGHT_BROWSERS_PATH = ${JSON.stringify(stalePath)};`,
+          "process.env.RENDER = '1';",
+          "require('./chatgpt');",
+          'console.log(process.env.PLAYWRIGHT_BROWSERS_PATH);'
+        ].join('')
+      ],
+      {
+        cwd: __dirname,
+        env: {
+          ...process.env,
+          PLAYWRIGHT_BROWSERS_PATH: stalePath,
+          RENDER: '1'
+        },
+        encoding: 'utf8'
+      }
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout.trim(), expectedPath);
+  }
 });
 
 test('headed Chromium starts minimized without being positioned off-screen', () => {
