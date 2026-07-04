@@ -159,6 +159,31 @@ test('headed Chromium starts minimized without being positioned off-screen', () 
   assert.equal(launchArgs.some((argument) => argument.startsWith('--window-position=')), false);
 });
 
+test('headless Chromium uses the full bundled Chromium browser channel', async () => {
+  const service = new ChatGPTService({ headless: true });
+  let launchOptions = null;
+
+  service.installMissingPlaywrightBrowser = async () => undefined;
+  service.isMissingBrowserExecutableError = () => false;
+  service.recoverProfileLock = false;
+
+  const chromium = require('playwright').chromium;
+  const original = chromium.launchPersistentContext;
+
+  chromium.launchPersistentContext = async (_userDataDir, options) => {
+    launchOptions = options;
+    return { close: async () => undefined };
+  };
+
+  try {
+    await service.launchBrowserContext(service.getLaunchArgs());
+  } finally {
+    chromium.launchPersistentContext = original;
+  }
+
+  assert.equal(launchOptions.channel, 'chromium');
+});
+
 test('transient response timeout retries once in a fresh request tab', async () => {
   const service = new ChatGPTService();
   const attempts = [];

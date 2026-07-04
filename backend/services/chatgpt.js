@@ -6,10 +6,9 @@ const { promisify } = require('util');
 const RENDER_PLAYWRIGHT_BROWSERS_PATH = path.resolve(__dirname, '..', '.playwright-browsers');
 
 if (
-  (process.env.RENDER || process.env.RENDER_EXTERNAL_URL || process.env.RENDER_SERVICE_ID) &&
-  (!process.env.PLAYWRIGHT_BROWSERS_PATH ||
-    process.env.PLAYWRIGHT_BROWSERS_PATH === '0' ||
-    process.env.PLAYWRIGHT_BROWSERS_PATH === '/opt/render/.cache/ms-playwright')
+  process.env.RENDER ||
+  process.env.RENDER_EXTERNAL_URL ||
+  process.env.RENDER_SERVICE_ID
 ) {
   process.env.PLAYWRIGHT_BROWSERS_PATH = RENDER_PLAYWRIGHT_BROWSERS_PATH;
 }
@@ -244,6 +243,10 @@ class ChatGPTService {
       viewport: this.viewport,
       args: launchArgs
     };
+
+    if (this.headless) {
+      launchOptions.channel = 'chromium';
+    }
 
     console.info(
       `Starting Kyrovia browser: headless=${this.headless}, userDataDir=${this.userDataDir}, PLAYWRIGHT_BROWSERS_PATH=${process.env.PLAYWRIGHT_BROWSERS_PATH || '(default)'}`
