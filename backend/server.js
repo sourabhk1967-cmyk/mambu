@@ -223,7 +223,11 @@ app.use((req, res) => {
 
 app.use((err, _req, res, _next) => {
   const status = err.type === 'entity.parse.failed' ? 400 : err.status || err.statusCode || 500;
-  const message = status >= 500 && !err.expose ? 'Unexpected server error' : err.message;
+  const isPlaywrightOrBrowserError = 
+    /playwright|chromium|browser|page|tab|context|singleton|lockfile|lock|selector|timeout|agent/i.test(err.message || '');
+  const isDev = process.env.NODE_ENV !== 'production';
+  const expose = err.expose || isPlaywrightOrBrowserError || isDev;
+  const message = status >= 500 && !expose ? 'Unexpected server error' : err.message;
 
   if (status >= 500 && !err.expose) {
     console.error(err);
@@ -297,6 +301,15 @@ if (require.main === module) {
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
   process.on('SIGUSR2', shutdown);
+
+  process.on('uncaughtException', (error) => {
+    if (error?.code === 'ENOBUFS') {
+      console.warn('Recoverable system resource pressure (uncaught ENOBUFS). Keeping service alive.');
+      return;
+    }
+    console.error('Uncaught Exception:', error);
+    process.exit(1);
+  });
 
   start();
 }

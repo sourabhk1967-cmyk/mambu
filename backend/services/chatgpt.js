@@ -261,11 +261,11 @@ class ChatGPTService {
       }
 
       const recovery = await this.recoverLockedProfile();
-      if (recovery.stopped > 0) {
+      if (recovery.supported) {
         console.warn(
-          `Stopped ${recovery.stopped} stale Chromium process(es) using ${this.userDataDir}. Retrying Kyrovia browser startup.`
+          `Attempted profile lock recovery (stopped ${recovery.stopped} stale process(es)). Retrying Kyrovia browser startup.`
         );
-        await new Promise((resolve) => setTimeout(resolve, 800));
+        await new Promise((resolve) => setTimeout(resolve, 1500));
 
         try {
           return await chromium.launchPersistentContext(this.userDataDir, launchOptions);
@@ -307,8 +307,8 @@ class ChatGPTService {
 
     const backendDir = path.resolve(__dirname, '..');
     const execArgs = playwrightCli
-      ? [playwrightCli, 'install', 'chromium', 'chromium-headless-shell']
-      : [require.resolve('playwright-core/cli'), 'install', 'chromium', 'chromium-headless-shell'];
+      ? [playwrightCli, 'install', 'chromium']
+      : [require.resolve('playwright-core/cli'), 'install', 'chromium'];
 
     try {
       await execFileAsync(process.execPath, execArgs, {
@@ -359,31 +359,10 @@ class ChatGPTService {
   }
 
   async recoverLockedProfile() {
-    if (process.platform !== 'win32') {
-      let stopped = 0;
-      try {
-        const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
-        for (const file of lockFiles) {
-          const filePath = path.join(this.userDataDir, file);
-          try {
-            await fs.unlink(filePath);
-            stopped++;
-          } catch (unlinkErr) {
-            if (unlinkErr.code !== 'ENOENT') {
-              console.warn(`Could not unlink ${filePath}: ${unlinkErr.message}`);
-            }
-          }
-        }
-      } catch (err) {
-        console.error('Error recovering locked profile on Linux/Mac:', err);
-      }
-      return {
-        supported: true,
-        stopped
-      };
-    }
+    let stopped = 0;
 
-    const script = `
+    if (process.platform === 'win32') {
+      const script = `
 $ErrorActionPreference = 'Stop'
 $target = [System.IO.Path]::GetFullPath($env:KYROVIA_PROFILE_TARGET).TrimEnd([char]92)
 $profilePattern = '(?i)--user-data-dir=(?:"' + [regex]::Escape($target) + '"|' + [regex]::Escape($target) + ')(?="|\\s|$)'
@@ -414,39 +393,49 @@ Get-CimInstance Win32_Process |
 } | ConvertTo-Json -Compress
 `;
 
-    try {
-      const { stdout } = await execFileAsync(
-        'powershell.exe',
-        ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script],
-        {
-          env: {
-            ...process.env,
-            KYROVIA_PROFILE_TARGET: this.userDataDir
-          },
-          timeout: 10000,
-          windowsHide: true,
-          maxBuffer: 1024 * 1024
-        }
-      );
-      const parsed = JSON.parse(stdout || '{}');
-      const stopped = Array.isArray(parsed.stopped)
-        ? parsed.stopped.length
-        : parsed.stopped
-        ? 1
-        : 0;
-
-      return {
-        supported: true,
-        stopped,
-        target: parsed.target || this.userDataDir
-      };
-    } catch (recoveryError) {
-      return {
-        supported: true,
-        stopped: 0,
-        error: recoveryError.message
-      };
+      try {
+        const { stdout } = await execFileAsync(
+          'powershell.exe',
+          ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script],
+          {
+            env: {
+              ...process.env,
+              KYROVIA_PROFILE_TARGET: this.userDataDir
+            },
+            timeout: 10000,
+            windowsHide: true,
+            maxBuffer: 1024 * 1024
+          }
+        );
+        const parsed = JSON.parse(stdout || '{}');
+        stopped = Array.isArray(parsed.stopped)
+          ? parsed.stopped.length
+          : parsed.stopped
+          ? 1
+          : 0;
+      } catch (recoveryError) {
+        console.warn(`Windows process recovery error: ${recoveryError.message}`);
+      }
     }
+
+    // Clean up lock files on all platforms
+    const lockFiles = ['lockfile', 'SingletonLock', 'SingletonCookie', 'SingletonSocket'];
+    for (const file of lockFiles) {
+      const filePath = path.join(this.userDataDir, file);
+      try {
+        await fs.unlink(filePath);
+        stopped++;
+      } catch (unlinkErr) {
+        if (unlinkErr.code !== 'ENOENT') {
+          console.warn(`Could not unlink lock file ${filePath}: ${unlinkErr.message}`);
+        }
+      }
+    }
+
+    return {
+      supported: true,
+      stopped
+    };
   }
 
   async close() {

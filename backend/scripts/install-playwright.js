@@ -13,7 +13,7 @@ const playwrightPackageDir = path.dirname(require.resolve('playwright/package.js
 const playwrightCli = path.join(playwrightPackageDir, 'cli.js');
 const result = spawnSync(
   process.execPath,
-  [playwrightCli, 'install', 'chromium', 'chromium-headless-shell'],
+  [playwrightCli, 'install', 'chromium'],
   {
     cwd: path.resolve(__dirname, '..'),
     env: process.env,

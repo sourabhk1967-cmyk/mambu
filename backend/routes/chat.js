@@ -283,7 +283,11 @@ function startGenerationEventStream(res) {
 
 function safeRouteError(error) {
   const status = error.type === 'entity.parse.failed' ? 400 : error.status || error.statusCode || 500;
-  const message = status >= 500 && !error.expose ? 'Unexpected server error' : error.message;
+  const isPlaywrightOrBrowserError = 
+    /playwright|chromium|browser|page|tab|context|singleton|lockfile|lock|selector|timeout|agent/i.test(error.message || '');
+  const isDev = process.env.NODE_ENV !== 'production';
+  const expose = error.expose || isPlaywrightOrBrowserError || isDev;
+  const message = status >= 500 && !expose ? 'Unexpected server error' : error.message;
 
   if (status >= 500 && !error.expose) {
     console.error(error);
