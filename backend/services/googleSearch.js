@@ -1,3 +1,7 @@
+const { configurePlaywrightBrowserPath } = require('../playwrightEnvironment');
+
+configurePlaywrightBrowserPath();
+
 const { chromium } = require('playwright');
 
 const MAX_QUERY_LENGTH = 300;

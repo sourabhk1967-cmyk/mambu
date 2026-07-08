@@ -128,7 +128,9 @@ test('hosted runtime uses Playwright managed local browser installation', () => 
         "process.env.PLAYWRIGHT_BROWSERS_PATH = '/opt/render/.cache/ms-playwright';",
         "process.env.RENDER = '1';",
         "require('./chatgpt');",
-        'console.log(process.env.PLAYWRIGHT_BROWSERS_PATH);'
+        "const { chromium } = require('playwright');",
+        'console.log(process.env.PLAYWRIGHT_BROWSERS_PATH);',
+        'console.log(chromium.executablePath());'
       ].join('')
     ],
     {
@@ -143,7 +145,44 @@ test('hosted runtime uses Playwright managed local browser installation', () => 
   );
 
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stdout.trim(), '0');
+  const [browserPath, executablePath] = result.stdout.trim().split(/\r?\n/);
+  assert.equal(browserPath, require('node:path').resolve(__dirname, '..', '.cache', 'ms-playwright'));
+  assert.match(executablePath, /backend[\\/]\.cache[\\/]ms-playwright[\\/]chromium-\d+/);
+  assert.doesNotMatch(executablePath, /opt[\\/]render[\\/]\.cache[\\/]ms-playwright/);
+});
+
+test('server configures Playwright path before route imports can load browser services', () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      '-e',
+      [
+        "process.env.PLAYWRIGHT_BROWSERS_PATH = '/opt/render/.cache/ms-playwright';",
+        "process.env.RENDER = '1';",
+        "process.env.JWT_SECRET = 'test-secret';",
+        "require('../server');",
+        "const { chromium } = require('playwright');",
+        'console.log(process.env.PLAYWRIGHT_BROWSERS_PATH);',
+        'console.log(chromium.executablePath());'
+      ].join('')
+    ],
+    {
+      cwd: __dirname,
+      env: {
+        ...process.env,
+        PLAYWRIGHT_BROWSERS_PATH: '/opt/render/.cache/ms-playwright',
+        RENDER: '1',
+        JWT_SECRET: 'test-secret'
+      },
+      encoding: 'utf8'
+    }
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  const [browserPath, executablePath] = result.stdout.trim().split(/\r?\n/);
+  assert.equal(browserPath, require('node:path').resolve(__dirname, '..', '.cache', 'ms-playwright'));
+  assert.match(executablePath, /backend[\\/]\.cache[\\/]ms-playwright[\\/]chromium-\d+/);
+  assert.doesNotMatch(executablePath, /opt[\\/]render[\\/]\.cache[\\/]ms-playwright/);
 });
 
 test('headed Chromium starts minimized without being positioned off-screen', () => {

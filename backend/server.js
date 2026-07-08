@@ -7,6 +7,10 @@ const path = require('path');
 const rateLimit = require('express-rate-limit');
 
 const { configurePlaywrightBrowserPath } = require('./playwrightEnvironment');
+
+dotenv.config();
+configurePlaywrightBrowserPath();
+
 const { loadConfig } = require('./config');
 const appsRoutes = require('./routes/apps');
 const authRoutes = require('./routes/auth');
@@ -16,9 +20,6 @@ const healthRoutes = require('./routes/health');
 const searchRoutes = require('./routes/search');
 const whatsappRoutes = require('./routes/whatsapp');
 const { WhatsAppManager } = require('./services/whatsappManager');
-
-dotenv.config();
-configurePlaywrightBrowserPath();
 
 const config = loadConfig();
 const ChatGPTService = require('./services/chatgpt');
