@@ -9,7 +9,7 @@
     "start": "node server.js",
     "test": "node --test",
     "playwright:install": "node scripts/install-playwright.js",
-    "playwright:install:deps": "npx playwright install --with-deps chromium"
+    "playwright:install:deps": "npx playwright install --with-deps chromium chromium-headless-shell"
   },
   "nodemonConfig": {
     "watch": [

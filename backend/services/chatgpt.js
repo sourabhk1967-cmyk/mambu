@@ -241,11 +241,16 @@ class ChatGPTService {
       viewport: this.viewport,
       args: launchArgs
     };
+    const chromiumExecutablePath = chromium.executablePath();
+
+    if (this.headless) {
+      launchOptions.executablePath = chromiumExecutablePath;
+    }
 
     console.info(
       `Starting Kyrovia browser: headless=${this.headless}, userDataDir=${this.userDataDir}, PLAYWRIGHT_BROWSERS_PATH=${process.env.PLAYWRIGHT_BROWSERS_PATH || '(default)'}`
     );
-    console.info(`Playwright Chromium executable path: ${chromium.executablePath()}`);
+    console.info(`Playwright Chromium executable path: ${chromiumExecutablePath}`);
 
     try {
       return await chromium.launchPersistentContext(this.userDataDir, launchOptions);
@@ -307,8 +312,8 @@ class ChatGPTService {
 
     const backendDir = path.resolve(__dirname, '..');
     const execArgs = playwrightCli
-      ? [playwrightCli, 'install', 'chromium']
-      : [require.resolve('playwright-core/cli'), 'install', 'chromium'];
+      ? [playwrightCli, 'install', 'chromium', 'chromium-headless-shell']
+      : [require.resolve('playwright-core/cli'), 'install', 'chromium', 'chromium-headless-shell'];
 
     try {
       await execFileAsync(process.execPath, execArgs, {

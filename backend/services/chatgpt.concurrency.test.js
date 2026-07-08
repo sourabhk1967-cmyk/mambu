@@ -154,7 +154,7 @@ test('headed Chromium starts minimized without being positioned off-screen', () 
   assert.equal(launchArgs.some((argument) => argument.startsWith('--window-position=')), false);
 });
 
-test('browser launch does not override Playwright browser discovery', async () => {
+test('headless browser launch uses the installed full Chromium executable', async () => {
   const service = new ChatGPTService({ headless: true });
   let launchOptions = null;
 
@@ -177,7 +177,7 @@ test('browser launch does not override Playwright browser discovery', async () =
   }
 
   assert.equal(launchOptions.channel, undefined);
-  assert.equal(launchOptions.executablePath, undefined);
+  assert.equal(launchOptions.executablePath, chromium.executablePath());
 });
 
 test('transient response timeout retries once in a fresh request tab', async () => {
