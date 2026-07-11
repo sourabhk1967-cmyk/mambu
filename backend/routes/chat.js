@@ -980,10 +980,6 @@ router.post('/send', parseSendRequest, async (req, res, next) => {
     const scheduledIntent = String(intentInput || '').trim() === SCHEDULED_TASK_INTENT;
     const sessionKey = createChatSessionKey(req.user, conversationId);
     const identityRequest = detectIdentityRequest(message);
-    const workspace = await readWorkspace(req.user.username);
-    const personalizationInstruction = workspace
-      ? buildPersonalizationInstruction(workspace, conversationId)
-      : '';
     res.set('X-Kyrovia-Session-Id', req.user.sessionId);
 
     if (isGlabridinCalculationRequest(message) && !files.length) {
@@ -1054,7 +1050,6 @@ router.post('/send', parseSendRequest, async (req, res, next) => {
     generationResults.start(deliveryRequestId, req.user.username);
     res.set('X-Kyrovia-Request-Id', deliveryRequestId);
     res.set('X-Kyrovia-Generation-Session-Id', generationSessionId);
-    upload = await writeTempFiles(files);
     const service = getChatService(req);
     if (!service?.ready) {
       throw createHttpError(
@@ -1127,6 +1122,11 @@ router.post('/send', parseSendRequest, async (req, res, next) => {
     } else {
       heartbeat = startJsonHeartbeat(res);
     }
+    upload = await writeTempFiles(files);
+    const workspace = await readWorkspace(req.user.username);
+    const personalizationInstruction = workspace
+      ? buildPersonalizationInstruction(workspace, conversationId)
+      : '';
     const providerPrompt = scheduledIntent
       ? createScheduledTaskPrompt(
           promptPlan.prompt,
