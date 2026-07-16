@@ -78,7 +78,7 @@ import {
   WandSparkles,
   X
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -157,8 +157,9 @@ import {
   normalizeIntelligence,
   predictWorkspaceSearches
 } from '../utils/personalIntelligence';
-import PersonalIntelligenceView from './PersonalIntelligenceView';
 import styles from './Chat.module.css';
+
+const PersonalIntelligenceView = lazy(() => import('./PersonalIntelligenceView'));
 
 const markdownRemarkPlugins = [[remarkMath, { singleDollarTextMath: true }], remarkGfm];
 const katexOptions = {
@@ -9596,11 +9597,19 @@ function Chat({ session, onLogout }) {
           onSetViewMode={setLibraryViewMode}
         />
       ) : activeView === 'intelligence' ? (
-        <PersonalIntelligenceView
-          onUsePrediction={handleUsePrediction}
-          onWorkspaceChange={setWorkspace}
-          workspace={workspace}
-        />
+        <Suspense
+          fallback={
+            <main className="appCenter">
+              <div className="loader" aria-label="Loading personalization" />
+            </main>
+          }
+        >
+          <PersonalIntelligenceView
+            onUsePrediction={handleUsePrediction}
+            onWorkspaceChange={setWorkspace}
+            workspace={workspace}
+          />
+        </Suspense>
       ) : activeView === 'imageGenerator' ? (
         <ImageGeneratorView
           modelId={selectedModelId}

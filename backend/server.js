@@ -233,7 +233,9 @@ app.use((err, _req, res, _next) => {
 
 let server = null;
 let shuttingDown = false;
+let browserHealthInterval = null;
 const RECOVERABLE_SERVER_ERRORS = new Set(['ECONNABORTED', 'EMFILE', 'ENFILE', 'ENOBUFS']);
+const BROWSER_HEALTH_INTERVAL_MS = Number.parseInt(process.env.BROWSER_HEALTH_INTERVAL_MS || '30000', 10);
 
 function handleServerError(error) {
   if (RECOVERABLE_SERVER_ERRORS.has(error?.code)) {
@@ -258,10 +260,33 @@ async function startBrowserService() {
   }
 }
 
+function startBrowserHealthCheck() {
+  if (browserHealthInterval || !Number.isFinite(BROWSER_HEALTH_INTERVAL_MS) || BROWSER_HEALTH_INTERVAL_MS <= 0) {
+    return;
+  }
+
+  browserHealthInterval = setInterval(async () => {
+    if (shuttingDown) {
+      return;
+    }
+
+    try {
+      const result = await chatgpt.ensureBrowserHealthy({ restart: true });
+      if (result.restarted) {
+        console.warn(`Kyrovia browser health check restarted the browser (${result.reason || 'unknown'}).`);
+      }
+    } catch (error) {
+      console.warn(`Kyrovia browser health check failed: ${error.message}`);
+    }
+  }, BROWSER_HEALTH_INTERVAL_MS);
+  browserHealthInterval.unref?.();
+}
+
 async function start() {
   server = app.listen(config.server.port, () => {
     console.log(`API listening at http://localhost:${config.server.port}`);
     startBrowserService();
+    startBrowserHealthCheck();
   });
   server.on('error', handleServerError);
 }
@@ -273,6 +298,11 @@ async function shutdown(signal) {
 
   shuttingDown = true;
   console.log(`Received ${signal}. Closing services...`);
+
+  if (browserHealthInterval) {
+    clearInterval(browserHealthInterval);
+    browserHealthInterval = null;
+  }
 
   if (server) {
     await new Promise((resolve, reject) => {

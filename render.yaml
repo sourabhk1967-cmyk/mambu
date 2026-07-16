@@ -51,13 +51,15 @@ services:
       - key: PLAYWRIGHT_USER_DATA_DIR
         value: ./playwright-profile
       - key: PLAYWRIGHT_TIMEOUT_MS
-        value: 300000
+        value: 120000
       - key: PLAYWRIGHT_VIEWPORT_WIDTH
         value: 1280
       - key: PLAYWRIGHT_VIEWPORT_HEIGHT
         value: 800
       - key: PLAYWRIGHT_RECOVER_PROFILE_LOCK
         value: true
+      - key: BROWSER_HEALTH_INTERVAL_MS
+        value: 30000
       - key: CHAT_MAX_CONCURRENT_TABS
         value: 1
       - key: CHAT_PARALLEL_TABS

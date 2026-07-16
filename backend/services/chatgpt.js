@@ -12,6 +12,11 @@ const { extractInteractiveVisual } = require('./interactiveVisual');
 const SerialTaskQueue = require('./serialTaskQueue');
 
 const execFileAsync = promisify(execFile);
+
+/** Page-independent sleep - avoids TargetClosedError from page.waitForTimeout */
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 const ASSISTANT_SELECTOR = '[data-message-author-role="assistant"]';
 const DEFAULT_MODEL_ID = 'nova-instant';
 const SHARED_BROWSER_QUEUE_KEY = 'chatgpt-browser';
@@ -47,10 +52,10 @@ const BLOCKING_MODAL_SELECTORS = [
 ];
 const DEFAULT_TIMEOUT_MS = 120000;
 const DEFAULT_VIEWPORT = { width: 1365, height: 900 };
-const RESPONSE_POLL_INTERVAL_MS = 40;
+const RESPONSE_POLL_INTERVAL_MS = 25;
 const STABLE_READS_REQUIRED = 1;
 const TEXT_STABLE_WHILE_GENERATING_READS = 12;
-const RESPONSE_FINAL_SETTLE_MS = 80;
+const RESPONSE_FINAL_SETTLE_MS = 40;
 const PROMPT_READY_TIMEOUT_MS = 10000;
 const COMPOSER_FILL_VERIFY_TIMEOUT_MS = 1500;
 const COMPOSER_FILL_SETTLE_MS = 50;
@@ -208,7 +213,7 @@ class ChatGPTService {
     this.page = await this.ensurePage();
     await this.page.goto(this.chatUrl, { waitUntil: 'domcontentloaded', timeout: this.timeoutMs });
     await this.page.keyboard.press('Control+0').catch(() => undefined);
-    await this.page.waitForTimeout(100);
+    await sleep(100);
     this.ready = true;
   }
 
@@ -456,6 +461,61 @@ Get-CimInstance Win32_Process |
     }
   }
 
+  isPageUsable(page) {
+    return Boolean(page && !page.isClosed());
+  }
+
+  async ensureBrowserHealthy({ restart = true } = {}) {
+    const queue = this.getQueueStatus();
+
+    if (queue.processing || queue.activeCount || this.initPromise) {
+      return {
+        ready: this.ready,
+        skipped: true,
+        reason: this.initPromise ? 'initializing' : 'busy'
+      };
+    }
+
+    if (!this.context || !this.ready) {
+      if (!restart) {
+        return { ready: false, restarted: false, reason: 'not-ready' };
+      }
+
+      await this.init();
+      return { ready: this.ready, restarted: true, reason: 'not-ready' };
+    }
+
+    try {
+      const pages = this.context.pages();
+      if (this.page && this.page.isClosed()) {
+        this.page = pages.find((page) => !page.isClosed()) || null;
+      }
+
+      return {
+        ready: this.ready,
+        restarted: false,
+        openTabs: pages.filter((page) => !page.isClosed()).length
+      };
+    } catch (error) {
+      if (!this.isBrowserClosedError(error)) {
+        throw error;
+      }
+
+      this.ready = false;
+      this.context = null;
+      this.page = null;
+      this.sessionUrls.clear();
+      this.activeRequestPages.clear();
+
+      if (!restart) {
+        return { ready: false, restarted: false, reason: 'browser-closed' };
+      }
+
+      await this.init();
+      return { ready: this.ready, restarted: true, reason: 'browser-closed' };
+    }
+  }
+
   async getStatus() {
     const queue = this.getQueueStatus();
 
@@ -568,7 +628,7 @@ Get-CimInstance Win32_Process |
   }
 
   async sendMessageWithRetry(prompt, files = [], modelId = DEFAULT_MODEL_ID, options = {}) {
-    const maxAttempts = 2;
+    const maxAttempts = 3;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
@@ -589,7 +649,17 @@ Get-CimInstance Win32_Process |
           throw error;
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 400));
+        // Auto-reinit browser on crash before retrying
+        if (transientBrowserClosed) {
+          console.warn(`Browser closed during attempt ${attempt}/${maxAttempts}. Auto-reinitializing...`);
+          try {
+            await this.init();
+          } catch (reinitError) {
+            console.warn(`Browser auto-reinit failed: ${reinitError.message}`);
+          }
+        }
+
+        await sleep(400);
       }
     }
 
@@ -871,21 +941,29 @@ Get-CimInstance Win32_Process |
       throw createServiceError(503, 'Browser context is not available');
     }
 
-    if (this.page && !this.page.isClosed()) {
+    if (this.isPageUsable(this.page)) {
       return this.page;
     }
 
-    this.page = this.context.pages()[0] || (await this.context.newPage());
+    this.page = this.context.pages().find((page) => this.isPageUsable(page)) || (await this.context.newPage());
     return this.page;
   }
 
   getQueueStatus() {
+    let openTabs = 0;
+
+    try {
+      openTabs = this.context?.pages().filter((page) => !page.isClosed()).length || 0;
+    } catch (_error) {
+      openTabs = 0;
+    }
+
     return {
       ...this.requestQueue.getStatus(),
       mode: this.parallelTabs ? 'parallel-tabs' : 'shared-browser-serial',
       parallelTabs: this.parallelTabs,
       activeTabs: this.activeRequestPages.size,
-      openTabs: this.context?.pages().filter((page) => !page.isClosed()).length || 0
+      openTabs
     };
   }
 
@@ -972,7 +1050,7 @@ Get-CimInstance Win32_Process |
         return composer;
       }
 
-      await page.waitForTimeout(RESPONSE_POLL_INTERVAL_MS);
+      await sleep(RESPONSE_POLL_INTERVAL_MS);
     }
 
     return null;
@@ -1034,7 +1112,7 @@ Get-CimInstance Win32_Process |
       }
 
       await this.stopGenerating(page);
-      await page.waitForTimeout(RESPONSE_POLL_INTERVAL_MS);
+      await sleep(RESPONSE_POLL_INTERVAL_MS);
     }
 
     if (await this.isGenerating(page)) {
@@ -1103,7 +1181,7 @@ Get-CimInstance Win32_Process |
         return true;
       }
 
-      await page.waitForTimeout(RESPONSE_POLL_INTERVAL_MS);
+      await sleep(RESPONSE_POLL_INTERVAL_MS);
     }
 
     return normalizeComposerText(await this.readComposerText(composer)) === expected;
@@ -1185,7 +1263,7 @@ Get-CimInstance Win32_Process |
       await this.focusComposer(composer);
       await page.keyboard.press(this.selectAllShortcut());
       await page.keyboard.insertText(prompt);
-      await page.waitForTimeout(COMPOSER_FILL_SETTLE_MS);
+      await sleep(COMPOSER_FILL_SETTLE_MS);
 
       if (await this.waitForComposerFilled(page, composer, prompt)) {
         return;
@@ -1196,7 +1274,7 @@ Get-CimInstance Win32_Process |
 
     try {
       if (await this.setComposerTextInDom(composer, prompt)) {
-        await page.waitForTimeout(COMPOSER_FILL_SETTLE_MS);
+        await sleep(COMPOSER_FILL_SETTLE_MS);
 
         if (await this.waitForComposerFilled(page, composer, prompt)) {
           return;
@@ -1208,7 +1286,7 @@ Get-CimInstance Win32_Process |
 
     try {
       await composer.fill(prompt, { timeout: 5000 });
-      await page.waitForTimeout(COMPOSER_FILL_SETTLE_MS);
+      await sleep(COMPOSER_FILL_SETTLE_MS);
 
       if (await this.waitForComposerFilled(page, composer, prompt)) {
         return;
@@ -1221,7 +1299,7 @@ Get-CimInstance Win32_Process |
       await this.focusComposer(composer);
       await page.keyboard.press(this.selectAllShortcut());
       await page.keyboard.type(prompt, { delay: 0 });
-      await page.waitForTimeout(COMPOSER_FILL_SETTLE_MS);
+      await sleep(COMPOSER_FILL_SETTLE_MS);
 
       if (await this.waitForComposerFilled(page, composer, prompt)) {
         return;
@@ -1332,11 +1410,11 @@ Get-CimInstance Win32_Process |
       );
 
       if (!uploading && (!targetNames.length || visibleNames.some(Boolean) || Date.now() - startedAt > 2500)) {
-        await page.waitForTimeout(300);
+        await sleep(300);
         return;
       }
 
-      await page.waitForTimeout(200);
+      await sleep(200);
     }
   }
 
@@ -1363,7 +1441,7 @@ Get-CimInstance Win32_Process |
       // a valid response-start signal: an image from an earlier turn may simply be
       // finishing a lazy reload and would make us scrape the whole conversation.
       if (!expectImage) {
-        await page.waitForTimeout(RESPONSE_POLL_INTERVAL_MS);
+        await sleep(RESPONSE_POLL_INTERVAL_MS);
         continue;
       }
 
@@ -1383,7 +1461,7 @@ Get-CimInstance Win32_Process |
         return page.locator(PAGE_IMAGE_SCOPE_SELECTOR).first();
       }
 
-      await page.waitForTimeout(RESPONSE_POLL_INTERVAL_MS);
+      await sleep(RESPONSE_POLL_INTERVAL_MS);
     }
 
     throw createServiceError(
@@ -1541,7 +1619,7 @@ Get-CimInstance Win32_Process |
       }
 
       lastSignature = signature;
-      await page.waitForTimeout(RESPONSE_POLL_INTERVAL_MS);
+      await sleep(RESPONSE_POLL_INTERVAL_MS);
     }
 
     throw createServiceError(504, 'Timed out waiting for Kyrovia response');
@@ -2279,7 +2357,7 @@ Get-CimInstance Win32_Process |
     expectDownloadLinks = false,
     expectArtifacts = false
   ) {
-    await page.waitForTimeout(RESPONSE_FINAL_SETTLE_MS);
+    await sleep(RESPONSE_FINAL_SETTLE_MS);
     await this.waitForWritingBlockSettled(page, text, expectArtifacts);
 
     if (!expectDownloadLinks && !DOWNLOAD_INTENT_RE.test(String(text))) {
@@ -2305,7 +2383,7 @@ Get-CimInstance Win32_Process |
       }
 
       previousCount = count;
-      await page.waitForTimeout(RESPONSE_POLL_INTERVAL_MS);
+      await sleep(RESPONSE_POLL_INTERVAL_MS);
     }
   }
 
@@ -2343,7 +2421,7 @@ Get-CimInstance Win32_Process |
       }
 
       previousSignature = signature;
-      await page.waitForTimeout(RESPONSE_POLL_INTERVAL_MS);
+      await sleep(RESPONSE_POLL_INTERVAL_MS);
     }
   }
 

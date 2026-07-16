@@ -1,8 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 
-import Chat from './pages/Chat';
 import Login from './pages/Login';
-import SearchPage from './pages/SearchPage';
 import {
   completeGoogleRedirectSignIn,
   restoreGoogleSession,
@@ -17,6 +15,17 @@ import {
   setStoredUser,
   setStoredToken
 } from './services/api';
+
+const Chat = lazy(() => import('./pages/Chat'));
+const SearchPage = lazy(() => import('./pages/SearchPage'));
+
+function LoadingScreen({ label = 'Loading' }) {
+  return (
+    <main className="appCenter">
+      <div className="loader" aria-label={label} />
+    </main>
+  );
+}
 
 function App() {
   const [token, setToken] = useState(() => getStoredToken());
@@ -130,11 +139,7 @@ function App() {
   }
 
   if (checkingSession) {
-    return (
-      <main className="appCenter">
-        <div className="loader" aria-label="Checking session" />
-      </main>
-    );
+    return <LoadingScreen label="Checking session" />;
   }
 
   if (!token || !user) {
@@ -142,10 +147,18 @@ function App() {
   }
 
   if (isSearchPage) {
-    return <SearchPage session={session} onLogout={handleLogout} />;
+    return (
+      <Suspense fallback={<LoadingScreen label="Loading search" />}>
+        <SearchPage session={session} onLogout={handleLogout} />
+      </Suspense>
+    );
   }
 
-  return <Chat key={user.firebaseUid || user.username} session={session} onLogout={handleLogout} />;
+  return (
+    <Suspense fallback={<LoadingScreen label="Loading chat" />}>
+      <Chat key={user.firebaseUid || user.username} session={session} onLogout={handleLogout} />
+    </Suspense>
+  );
 }
 
 export default App;
