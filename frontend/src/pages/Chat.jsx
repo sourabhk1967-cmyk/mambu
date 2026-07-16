@@ -188,6 +188,24 @@ const ideaCards = [
   { title: 'Scribble', tone: 'scribble' }
 ];
 
+const kyroviaRelatedArticles = [
+  {
+    title: 'Global notes partnership: Kyrovia and Wise Atlas',
+    date: 'Company · May 10, 2026',
+    tone: 'green'
+  },
+  {
+    title: 'Review completed: Kyrovia readiness to continue research preview',
+    date: 'Company · Feb 14, 2026',
+    tone: 'peach'
+  },
+  {
+    title: 'Kyrovia announces new members to board of directors',
+    date: 'Company · Mar 8, 2026',
+    tone: 'rose'
+  }
+];
+
 const DEFAULT_SCHEDULED_PROMPT = 'Send me a daily briefing about the topics I care about most';
 const SCHEDULED_TASK_INTENT = 'scheduled-task';
 const scheduledCadenceOptions = ['Daily', 'Weekdays', 'Weekly', 'Event-based'];
@@ -6846,6 +6864,213 @@ function Composer({
   );
 }
 
+function KyroviaMainPage({ composer }) {
+  return (
+    <article className={styles.kyroviaPage} id="top">
+      <header className={styles.kyroviaHero}>
+        <time dateTime="2026-07-16">Research preview · July 16, 2026</time>
+        <h1>Introducing Kyrovia</h1>
+        <div className={styles.kyroviaHeroActions}>
+          <button type="button">Try Kyrovia</button>
+          <button type="button">Try Kyrovia for teams</button>
+        </div>
+      </header>
+
+      <section className={styles.kyroviaComposerBlock}>
+        {composer}
+        <button className={styles.kyroviaShare} type="button">
+          Share
+        </button>
+      </section>
+
+      <section className={styles.kyroviaIntro}>
+        <p>
+          We&apos;ve trained Kyrovia, a model designed for conversational AI. The dialogue format
+          makes it possible for Kyrovia to answer follow-up questions, admit its mistakes, challenge
+          incorrect premises, and reject inappropriate requests.
+        </p>
+        <p>
+          Kyrovia is a sibling model to Kyrovia Search, which is trained to follow instructions in a
+          prompt and provide a detailed response.
+        </p>
+        <p>
+          We are excited to introduce Kyrovia to get user feedback and learn about its strengths and
+          weaknesses. During this research preview, usage of Kyrovia is free. Try it now at kyrovia.ai.
+        </p>
+      </section>
+
+      <section className={styles.kyroviaSamples}>
+        <h2>Samples</h2>
+        <div className={styles.kyroviaTabs} aria-label="Sample prompts">
+          <button type="button">Fix code</button>
+          <button type="button">Human-friendly</button>
+          <button type="button">Explain</button>
+          <button type="button">Negotiation introduction</button>
+        </div>
+        <div className={styles.kyroviaSampleThread}>
+          <div className={styles.kyroviaUserBubble}>
+            <strong>User</strong>
+            <span>this code is not working like I expect. How do I fix it?</span>
+          </div>
+          <pre>{`result = []
+for item in data:
+  if item["score"] > threshold:
+    result.append(item["name"])
+
+return result[:10]`}</pre>
+          <div className={styles.kyroviaAssistantBubble}>
+            <strong>Kyrovia</strong>
+            <p>
+              The code assumes every item has both keys and that the score is comparable to the
+              threshold. A safer version checks for missing values, sorts by score, and returns the
+              top matching names.
+            </p>
+          </div>
+          <div className={styles.kyroviaUserBubble}>
+            <strong>User</strong>
+            <span>What if some items are malformed?</span>
+          </div>
+          <div className={styles.kyroviaAssistantBubble}>
+            <strong>Kyrovia</strong>
+            <p>
+              Add validation before filtering. You can skip malformed rows, collect them for review,
+              or return a structured error depending on how strict the workflow needs to be.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.kyroviaMethods} id="methods">
+        <h2>Methods</h2>
+        <p>
+          We trained this model using supervised fine-tuning and reinforcement learning from human
+          feedback. Human AI trainers provided conversations where they played both sides: the user
+          and the assistant.
+        </p>
+        <p>
+          To create a reward model for reinforcement learning, we collected comparison data where
+          trainers ranked alternative responses. We mixed this new dialogue dataset with instruction
+          data and transformed it into a dialogue format.
+        </p>
+        <div className={styles.kyroviaMethodGrid}>
+          <div>
+            <span>Step 1</span>
+            <strong>Collect demonstration data</strong>
+            <i />
+            <small>Human-written examples teach the assistant how a useful answer should feel.</small>
+          </div>
+          <div>
+            <span>Step 2</span>
+            <strong>Collect comparison data</strong>
+            <i />
+            <small>Multiple responses are ranked to train a reward model.</small>
+          </div>
+          <div>
+            <span>Step 3</span>
+            <strong>Optimize a policy</strong>
+            <i />
+            <small>The model improves through repeated feedback and evaluation.</small>
+          </div>
+        </div>
+        <p>
+          Kyrovia is fine-tuned from a model in the GPT-5 series, which finished training in early
+          2026. We use human feedback and safety evaluations to improve behavior over time.
+        </p>
+      </section>
+
+      <section className={styles.kyroviaSplit}>
+        <aside>
+          <a href="#methods">Methods</a>
+          <a href="#limitations">Limitations</a>
+          <a href="#deployment">Iterative deployment</a>
+        </aside>
+        <div id="limitations">
+          <h2>Limitations</h2>
+          <ul>
+            <li>Kyrovia sometimes writes plausible-sounding but incorrect or nonsensical answers.</li>
+            <li>The model is sensitive to phrasing, context, and how much detail a prompt provides.</li>
+            <li>Kyrovia can be verbose and may overuse certain phrases when it is uncertain.</li>
+            <li>Safety systems reduce harmful outputs, but they can occasionally be overcautious.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section className={styles.kyroviaDeployment} id="deployment">
+        <h2>Iterative deployment</h2>
+        <p>
+          Today&apos;s research release of Kyrovia is part of an ongoing deployment of increasingly
+          capable and safer AI systems. We learn from real-world use, update evaluations, and improve
+          the interface as capabilities grow.
+        </p>
+        <div className={styles.kyroviaTabs}>
+          <button type="button">Dialogue Guidance</button>
+          <button type="button">Creativity</button>
+          <button type="button">Safety and Limits</button>
+        </div>
+        <div className={styles.kyroviaSampleThread}>
+          <div className={styles.kyroviaUserBubble}>
+            <strong>User</strong>
+            <span>Tell me about what Kyrovia can help with.</span>
+          </div>
+          <div className={styles.kyroviaAssistantBubble}>
+            <strong>Kyrovia</strong>
+            <p>
+              I can help write, research, brainstorm, analyze files, reason through code, build
+              plans, and turn rough ideas into usable drafts. I&apos;ll also tell you when I need
+              more context.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.kyroviaPaper}>
+        <div>
+          <span>Kyrovia</span>
+          <strong>2026</strong>
+        </div>
+        <h3>Footnotes</h3>
+        <ol>
+          <li>No production secrets, user data, or private source material are shown on this page.</li>
+          <li>The sample content is illustrative and styled to match the Kyrovia main page reference.</li>
+        </ol>
+        <h3>Authors</h3>
+        <p>
+          Kyrovia Research, Kyrovia Product, Kyrovia Safety, Kyrovia Design, and the builders who
+          keep making the system more useful.
+        </p>
+      </section>
+
+      <section className={styles.kyroviaRelated}>
+        <div className={styles.kyroviaRelatedHeader}>
+          <h2>Related articles</h2>
+          <a href="#top">View all</a>
+        </div>
+        <div className={styles.kyroviaRelatedGrid}>
+          {kyroviaRelatedArticles.map((article) => (
+            <a href="#top" key={article.title}>
+              <span data-tone={article.tone} />
+              <strong>{article.title}</strong>
+              <small>{article.date}</small>
+            </a>
+          ))}
+        </div>
+      </section>
+
+      <footer className={styles.kyroviaFooter}>
+        {['Research', 'Products', 'Business', 'Company', 'News'].map((group) => (
+          <div key={group}>
+            <strong>{group}</strong>
+            <a href="#top">Overview</a>
+            <a href="#top">Kyrovia</a>
+            <a href="#top">Safety</a>
+            <a href="#top">Stories</a>
+          </div>
+        ))}
+      </footer>
+    </article>
+  );
+}
+
 function Chat({ session, onLogout }) {
   const [workspace, setWorkspace] = useState(() => loadWorkspace(session.user.username));
   const [draft, setDraft] = useState('');
@@ -9738,56 +9963,36 @@ function Chat({ session, onLogout }) {
               <div ref={messageEndRef} className={styles.messageEndMarker} aria-hidden="true" />
             </>
           ) : (
-            <div className={styles.welcomePanel}>
-              <h1>{activeConversationApp ? "What's on your mind today?" : 'Ready to dive in?'}</h1>
-              <Composer
-                activeApp={activeConversationApp}
-                attachments={attachments}
-                draft={draft}
-                fileInputRef={fileInputRef}
-                inputMode={inputMode}
-                isListening={isListening}
-                modelMenuOpen={modelMenuOpen}
-                onDraftChange={setDraft}
-                onDropFiles={handleFilesDropped}
-                onFileSelect={handleFilesSelected}
-                onKeyDown={handleKeyDown}
-                onOpenFiles={handleOpenFiles}
-                onRemoveAttachment={handleRemoveAttachment}
-                onSelectModel={handleSelectModel}
-                onSubmit={handleSubmit}
-                onToggleDictation={handleToggleDictation}
-                onToggleMode={setInputMode}
-                onToggleModelMenu={handleToggleModelMenu}
-                selectedModelId={selectedModelId}
-                sending={sending}
-                speechRecognitionSupported={speechRecognitionSupported}
-                suggestions={searchPredictions}
-                onSuggestionSelect={handleUsePrediction}
-                variant="hero"
-              />
-
-              <section className={styles.exploreSection}>
-                <div className={styles.exploreHeader}>
-                  <h2>Explore ideas</h2>
-                  <span>What's new</span>
-                </div>
-                <div className={styles.ideaGrid}>
-                  {ideaCards.map((card) => (
-                    <button
-                      className={styles.ideaCard}
-                      data-tone={card.tone || card.kind}
-                      key={card.title}
-                      onClick={card.kind === 'plain' ? handleOpenFiles : undefined}
-                      type="button"
-                    >
-                      {card.kind === 'plain' ? <Plus size={26} /> : <Sparkles size={24} />}
-                      <span>{card.title}</span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            </div>
+            <KyroviaMainPage
+              composer={
+                <Composer
+                  activeApp={activeConversationApp}
+                  attachments={attachments}
+                  draft={draft}
+                  fileInputRef={fileInputRef}
+                  inputMode={inputMode}
+                  isListening={isListening}
+                  modelMenuOpen={modelMenuOpen}
+                  onDraftChange={setDraft}
+                  onDropFiles={handleFilesDropped}
+                  onFileSelect={handleFilesSelected}
+                  onKeyDown={handleKeyDown}
+                  onOpenFiles={handleOpenFiles}
+                  onRemoveAttachment={handleRemoveAttachment}
+                  onSelectModel={handleSelectModel}
+                  onSubmit={handleSubmit}
+                  onToggleDictation={handleToggleDictation}
+                  onToggleMode={setInputMode}
+                  onToggleModelMenu={handleToggleModelMenu}
+                  selectedModelId={selectedModelId}
+                  sending={sending}
+                  speechRecognitionSupported={speechRecognitionSupported}
+                  suggestions={searchPredictions}
+                  onSuggestionSelect={handleUsePrediction}
+                  variant="hero"
+                />
+              }
+            />
           )}
         </section>
 
