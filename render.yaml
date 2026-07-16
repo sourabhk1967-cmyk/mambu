@@ -67,7 +67,13 @@ services:
       - key: CHAT_QUEUE_MAX_PENDING
         value: 25
       - key: CHAT_QUEUE_WAIT_TIMEOUT_MS
-        value: 900000
+        value: 1800000
+      - key: KYROVIA_BROWSER_WORKER_URL
+        sync: false
+      - key: KYROVIA_BROWSER_WORKER_SECRET
+        sync: false
+      - key: KYROVIA_BROWSER_WORKER_TIMEOUT_MS
+        value: 1200000
       - key: MAX_MESSAGE_LENGTH
         value: 8000
       - key: MAX_UPLOAD_BYTES

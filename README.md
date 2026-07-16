@@ -237,12 +237,35 @@ This browser mode needs a persistent machine, persistent disk, and usually a des
 
 Serverless platforms and hosts without an interactive browser are not suitable for the first ChatGPT login. `CHAT_MAX_CONCURRENT_TABS=1` and `CHAT_PARALLEL_TABS=false` keep requests serialized through the same app-owned Chromium profile, which is the recommended laptop mode when you sign in once through the visible Playwright browser. `CHAT_QUEUE_MAX_PENDING` controls the waiting-room size, `CHAT_QUEUE_WAIT_TIMEOUT_MS` controls how long a queued request may wait, and `VITE_AI_TIMEOUT_MS` keeps the frontend connected to long-running queued requests. `PLAYWRIGHT_RECOVER_PROFILE_LOCK=true` lets Kyrovia close stale Chromium processes that are using the exact app-owned `PLAYWRIGHT_USER_DATA_DIR` after an unclean restart. Advanced deployments can opt in to parallel tabs by setting `CHAT_PARALLEL_TABS=true` and raising `CHAT_MAX_CONCURRENT_TABS`; those tabs share the signed-in browser profile but retain separate Kyrovia account/session/conversation mappings.
 
+### Laptop browser worker for Render
+
+Render can serve the public site while your laptop runs the signed-in Chromium browser. In this mode, requests sent to `https://mambu.onrender.com/` are accepted by Render, forwarded to your laptop worker, generated in the laptop Playwright Chromium session, then returned to the frontend through the normal generation result polling flow.
+
+On the laptop, set a shared secret and run the supervised backend/tunnel:
+
+```powershell
+$env:KYROVIA_BROWSER_WORKER_SECRET="replace-with-a-long-random-secret"
+$env:PLAYWRIGHT_HEADLESS="false"
+npm run start:supervised
+```
+
+Copy the laptop public tunnel URL from `.tunnel/active-public-url.txt`, then set these Render environment variables on the `mambu` service:
+
+```text
+KYROVIA_BROWSER_WORKER_URL=https://your-laptop-tunnel-url
+KYROVIA_BROWSER_WORKER_SECRET=replace-with-the-same-long-random-secret
+KYROVIA_BROWSER_WORKER_TIMEOUT_MS=1200000
+```
+
+When both `KYROVIA_BROWSER_WORKER_URL` and `KYROVIA_BROWSER_WORKER_SECRET` are set on Render, Render skips its own Chromium startup and uses the laptop worker for `/api/chat/send`. The laptop must stay awake, connected to the internet, and signed in inside the Playwright Chromium window.
+
 ## Useful endpoints
 
 - `POST /api/auth/firebase`: exchange a Firebase Google token for a Kyrovia session
 - `GET /api/auth/me`: validate the Kyrovia session
 - `GET /api/chat/status`: check the backend browser and ChatGPT login state
 - `POST /api/chat/send`: send a prompt through the backend ChatGPT browser
+- `POST /api/chat/worker/send`: private laptop-worker endpoint used by Render when `KYROVIA_BROWSER_WORKER_URL` is configured
 - `POST /api/search/google`: search through the configured Google Programmable Search Engine
 - `GET /api/health/profile`: read the signed-in user's health profile
 - `PUT /api/health/profile`: save metrics, medicines, checkups, reminders, and preferences

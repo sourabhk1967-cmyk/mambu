@@ -24,7 +24,8 @@ const DEFAULTS = {
   chatParallelTabs: false,
   playwrightRecoverProfileLock: true,
   chatQueueMaxPending: 200,
-  chatQueueWaitTimeoutMs: 5 * 60 * 1000,
+  chatQueueWaitTimeoutMs: 30 * 60 * 1000,
+  browserWorkerTimeoutMs: 20 * 60 * 1000,
   playwrightUserDataDir: './playwright-profile',
   playwrightViewportWidth: 1365,
   playwrightViewportHeight: 900,
@@ -144,6 +145,11 @@ function loadConfig() {
         width: readPositiveInteger('PLAYWRIGHT_VIEWPORT_WIDTH', DEFAULTS.playwrightViewportWidth),
         height: readPositiveInteger('PLAYWRIGHT_VIEWPORT_HEIGHT', DEFAULTS.playwrightViewportHeight)
       }
+    },
+    browserWorker: {
+      url: readString('KYROVIA_BROWSER_WORKER_URL'),
+      secret: readString('KYROVIA_BROWSER_WORKER_SECRET'),
+      timeoutMs: readPositiveInteger('KYROVIA_BROWSER_WORKER_TIMEOUT_MS', DEFAULTS.browserWorkerTimeoutMs)
     },
     whatsapp: {
       authDir: readString('WHATSAPP_AUTH_DIR', DEFAULTS.whatsappAuthDir),

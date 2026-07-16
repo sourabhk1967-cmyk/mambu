@@ -25,6 +25,7 @@ const config = loadConfig();
 const ChatGPTService = require('./services/chatgpt');
 const app = express();
 const chatgpt = new ChatGPTService(config.chatgpt);
+const browserWorkerConfigured = Boolean(config.browserWorker?.url && config.browserWorker?.secret);
 const whatsappManager = new WhatsAppManager(config.whatsapp, {
   responseHandler: async (message, account) => {
     const senderLabel = message.senderName || message.senderJid || 'WhatsApp user';
@@ -132,6 +133,10 @@ app.get('/api/health', (_req, res) => {
     browserReady: chatgpt.ready,
     browserStartupError: chatgpt.lastStartupError,
     browserHeadless: config.chatgpt.headless,
+    browserWorker: {
+      configured: browserWorkerConfigured,
+      url: config.browserWorker?.url || ''
+    },
     aiProvider: 'kyrovia-browser',
     queue: {
       processing: queue.processing,
@@ -174,6 +179,8 @@ app.get('/api/deployment', (_req, res) => {
       startupError: chatgpt.lastStartupError,
       headless: config.chatgpt.headless,
       userDataDir: config.chatgpt.userDataDir,
+      workerConfigured: browserWorkerConfigured,
+      workerUrl: config.browserWorker?.url || '',
       queue: {
         active: queue.activeCount,
         openTabs: queue.openTabs,
@@ -252,6 +259,11 @@ function handleServerError(error) {
 }
 
 async function startBrowserService() {
+  if (browserWorkerConfigured) {
+    console.log('Kyrovia browser worker is configured; skipping Render-local Chromium startup.');
+    return;
+  }
+
   try {
     await chatgpt.init();
   } catch (error) {
@@ -261,7 +273,12 @@ async function startBrowserService() {
 }
 
 function startBrowserHealthCheck() {
-  if (browserHealthInterval || !Number.isFinite(BROWSER_HEALTH_INTERVAL_MS) || BROWSER_HEALTH_INTERVAL_MS <= 0) {
+  if (
+    browserWorkerConfigured ||
+    browserHealthInterval ||
+    !Number.isFinite(BROWSER_HEALTH_INTERVAL_MS) ||
+    BROWSER_HEALTH_INTERVAL_MS <= 0
+  ) {
     return;
   }
 

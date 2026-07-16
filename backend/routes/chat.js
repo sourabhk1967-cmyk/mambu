@@ -114,13 +114,72 @@ router.get('/images/:imageId', async (req, res, next) => {
   }
 });
 
-router.use(requireAuth);
-
 function createHttpError(status, message) {
   const error = new Error(message);
   error.status = status;
   return error;
 }
+
+function verifyBrowserWorkerSecret(req, _res, next) {
+  const worker = getBrowserWorkerConfig(req);
+  const expectedSecret = worker.secret;
+  const providedSecret = String(req.get('x-kyrovia-worker-secret') || '');
+
+  if (!expectedSecret || providedSecret !== expectedSecret) {
+    next(createHttpError(401, 'Browser worker access denied.'));
+    return;
+  }
+
+  next();
+}
+
+function requireBrowserWorkerSecret(req, res, next) {
+  verifyBrowserWorkerSecret(req, res, (error) => {
+    if (error) {
+      next(error);
+      return;
+    }
+
+    const user = req.body?.user;
+
+    if (!user || typeof user !== 'object' || !user.username) {
+      next(createHttpError(400, 'Browser worker request is missing user context.'));
+      return;
+    }
+
+    req.user = user;
+    req.body = req.body?.request || {};
+    req.isWorkerRequest = true;
+
+    if (req.body?.requestId) {
+      req.headers['x-kyrovia-request-id'] = req.body.requestId;
+    } else if (req.get('x-kyrovia-request-id')) {
+      req.headers['x-kyrovia-request-id'] = req.get('x-kyrovia-request-id');
+    }
+
+    next();
+  });
+}
+
+router.post('/worker/send', requireBrowserWorkerSecret, async (req, res, next) => {
+  req.isWorkerRequest = true;
+  await handleSendRequest(req, res, next);
+});
+
+router.get('/worker/status', verifyBrowserWorkerSecret, async (req, res, next) => {
+  try {
+    const service = getChatService(req);
+    const status = await service.getStatus();
+    res.json({
+      ...status,
+      browserWorker: true
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.use(requireAuth);
 
 function assertSafeProviderResponse(result) {
   const text = String(result?.text || '');
@@ -307,6 +366,138 @@ function getChatService(req) {
   }
 
   return service;
+}
+
+function getBrowserWorkerConfig(req) {
+  return req.app.locals.config?.browserWorker || {};
+}
+
+function browserWorkerIsConfigured(req) {
+  const worker = getBrowserWorkerConfig(req);
+  return Boolean(worker.url && worker.secret);
+}
+
+function shouldUseBrowserWorker(req) {
+  return browserWorkerIsConfigured(req) && req.isWorkerRequest !== true;
+}
+
+function browserWorkerEndpoint(baseUrl = '') {
+  const url = new URL('/api/chat/worker/send', baseUrl);
+  return url.toString();
+}
+
+function serializeFilesForWorker(files = []) {
+  return files.map((file) => ({
+    name: file.name,
+    type: file.type,
+    data: file.buffer.toString('base64')
+  }));
+}
+
+async function sendToBrowserWorker(req, requestPayload, { requestId, generationSessionId, signal } = {}) {
+  const worker = getBrowserWorkerConfig(req);
+  const endpoint = browserWorkerEndpoint(worker.url);
+  const timeoutMs = Number.isInteger(worker.timeoutMs) && worker.timeoutMs > 0
+    ? worker.timeoutMs
+    : 20 * 60 * 1000;
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  const combinedSignal = signal
+    ? AbortSignal.any([signal, timeoutSignal])
+    : timeoutSignal;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'X-Kyrovia-Worker-Secret': worker.secret,
+      'X-Kyrovia-Request-Id': requestId,
+      'X-Kyrovia-Generation-Session-Id': generationSessionId
+    },
+    body: JSON.stringify({
+      requestId,
+      generationSessionId,
+      user: req.user,
+      request: requestPayload
+    }),
+    signal: combinedSignal
+  });
+
+  const text = await response.text();
+  let payload = null;
+
+  try {
+    payload = text ? JSON.parse(text.trim()) : null;
+  } catch (_error) {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    const message = payload?.message || payload?.error || text.trim() || `Browser worker returned HTTP ${response.status}.`;
+    const error = createHttpError(response.status, message);
+    error.expose = true;
+    throw error;
+  }
+
+  if (!payload || typeof payload !== 'object') {
+    throw createHttpError(502, 'Browser worker returned an invalid response.');
+  }
+
+  return payload;
+}
+
+async function getBrowserWorkerStatus(req) {
+  const worker = getBrowserWorkerConfig(req);
+  const endpoint = new URL('/api/chat/worker/status', worker.url).toString();
+  const response = await fetch(endpoint, {
+    headers: {
+      Accept: 'application/json',
+      'X-Kyrovia-Worker-Secret': worker.secret
+    },
+    signal: AbortSignal.timeout(Math.min(worker.timeoutMs || 30000, 30000))
+  });
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok || !payload) {
+    throw createHttpError(response.status || 502, payload?.message || 'Browser worker status is unavailable.');
+  }
+
+  return {
+    ...payload,
+    browserWorker: {
+      configured: true,
+      url: worker.url
+    }
+  };
+}
+
+function absolutizeWorkerUrl(req, value = '') {
+  const rawValue = String(value || '');
+
+  if (!rawValue.startsWith('/api/chat/images/')) {
+    return value;
+  }
+
+  try {
+    return new URL(rawValue, getBrowserWorkerConfig(req).url).toString();
+  } catch (_error) {
+    return value;
+  }
+}
+
+function rewriteBrowserWorkerAssets(req, payload = {}) {
+  const images = Array.isArray(payload.images)
+    ? payload.images.map((image) => ({
+        ...image,
+        src: absolutizeWorkerUrl(req, image.src),
+        sourceUrl: absolutizeWorkerUrl(req, image.sourceUrl)
+      }))
+    : [];
+
+  return {
+    ...payload,
+    images
+  };
 }
 
 function imageAssetUrl(_req, imageName) {
@@ -775,6 +966,12 @@ async function cleanupTempFiles(upload) {
 
 router.get('/status', async (req, res, next) => {
   try {
+    if (shouldUseBrowserWorker(req)) {
+      const workerStatus = await getBrowserWorkerStatus(req);
+      res.json(workerStatus);
+      return;
+    }
+
     const service = getChatService(req);
     const status = await service.getStatus();
     res.json(status);
@@ -952,7 +1149,7 @@ router.post('/conversations', async (req, res, next) => {
   }
 });
 
-router.post('/send', parseSendRequest, async (req, res, next) => {
+async function handleSendRequest(req, res, next) {
   let upload = null;
   let heartbeat = null;
   let eventStream = null;
@@ -1050,6 +1247,88 @@ router.post('/send', parseSendRequest, async (req, res, next) => {
     generationResults.start(deliveryRequestId, req.user.username);
     res.set('X-Kyrovia-Request-Id', deliveryRequestId);
     res.set('X-Kyrovia-Generation-Session-Id', generationSessionId);
+
+    if (shouldUseBrowserWorker(req)) {
+      requestAbortController = new AbortController();
+      abortOnClose = () => {
+        if (!res.writableEnded && !generationStarted) {
+          requestAbortController.abort();
+        }
+      };
+      res.once('close', abortOnClose);
+
+      if (respondAsync) {
+        res.status(202).json({
+          requestId: deliveryRequestId,
+          generationSessionId,
+          status: 'pending',
+          worker: true
+        });
+      } else if (wantsGenerationEvents(req)) {
+        eventStream = startGenerationEventStream(res);
+        eventStream.send('accepted', {
+          requestId: deliveryRequestId,
+          generationSessionId,
+          worker: true,
+          message: 'Backend accepted the generation request and sent it to the laptop worker.'
+        });
+      } else {
+        heartbeat = startJsonHeartbeat(res);
+      }
+
+      eventStream?.send('queued', {
+        requestId: deliveryRequestId,
+        generationSessionId,
+        worker: true,
+        position: 1,
+        pending: 0,
+        maxPending: 1
+      });
+      generationStarted = true;
+      eventStream?.send('started', {
+        requestId: deliveryRequestId,
+        generationSessionId,
+        worker: true,
+        waitMs: 0
+      });
+
+      const workerPayload = await sendToBrowserWorker(
+        req,
+        {
+          message,
+          model,
+          appId: appInput || '',
+          conversationId,
+          intent: intentInput || '',
+          files: serializeFilesForWorker(files)
+        },
+        {
+          requestId: deliveryRequestId,
+          generationSessionId,
+          signal: requestAbortController.signal
+        }
+      );
+      const payload = {
+        ...rewriteBrowserWorkerAssets(req, workerPayload),
+        generationSessionId,
+        requestId: undefined,
+        queue: {
+          ...(workerPayload.queue || {}),
+          worker: true,
+          routedVia: 'browser-worker'
+        },
+        browserWorker: true
+      };
+
+      generationResults.complete(deliveryRequestId, req.user.username, payload);
+      if (eventStream) {
+        eventStream.finish(payload);
+      } else if (heartbeat) {
+        heartbeat.finish(payload);
+      }
+      return;
+    }
+
     const service = getChatService(req);
     if (!service?.ready) {
       throw createHttpError(
@@ -1326,6 +1605,8 @@ router.post('/send', parseSendRequest, async (req, res, next) => {
     heartbeat?.stop();
     await cleanupTempFiles(upload);
   }
-});
+}
+
+router.post('/send', parseSendRequest, handleSendRequest);
 
 module.exports = router;
