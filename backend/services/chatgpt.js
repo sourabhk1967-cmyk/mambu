@@ -735,7 +735,7 @@ Get-CimInstance Win32_Process |
     const page = await this.createRequestPage();
     let requestTimedOut = false;
     let requestTimeoutId = null;
-    const requestTimeoutMs = Math.max(30000, Math.min(this.timeoutMs, 180000));
+    const requestTimeoutMs = Math.max(30000, this.timeoutMs);
     const timeoutPromise = new Promise((_, reject) => {
       requestTimeoutId = setTimeout(() => {
         requestTimedOut = true;
@@ -1494,6 +1494,7 @@ Get-CimInstance Win32_Process |
     let lastSignature = '';
     let lastStreamedText = '';
     let lastStreamedRawText = '';
+    let lastRecoverableText = '';
     const inspectImages = expectImage || expectVisual;
     const inspectDownloads = expectDownloadLinks;
     const richResponse = inspectImages || inspectDownloads || expectArtifacts;
@@ -1521,6 +1522,10 @@ Get-CimInstance Win32_Process |
       const signature = `${responseText}|assistantImages:${imageCount}|visuals:${visualCount}|pageImages:${newPageImageCount}:${newPageImageSignature}|downloads:${downloadLinkCount}`;
       const hasResponse = Boolean(responseText || hasImage || hasDownload);
       const sameSignature = signature === lastSignature;
+
+      if (responseText && !/^thinking\.{0,3}$/i.test(responseText)) {
+        lastRecoverableText = responseText;
+      }
 
       if (hasResponse && sameSignature) {
         stableSignatureReads += 1;
@@ -1620,6 +1625,22 @@ Get-CimInstance Win32_Process |
 
       lastSignature = signature;
       await sleep(RESPONSE_POLL_INTERVAL_MS);
+    }
+
+    const fallbackMarkdown =
+      (await this.extractAssistantMarkdown(locator).catch(() => '')) ||
+      lastStreamedText ||
+      lastRecoverableText;
+
+    if (fallbackMarkdown && !/^thinking\.{0,3}$/i.test(fallbackMarkdown.trim())) {
+      return {
+        text: fallbackMarkdown,
+        images: [],
+        interactiveHtml: '',
+        files: [],
+        sources: [],
+        artifacts: []
+      };
     }
 
     throw createServiceError(504, 'Timed out waiting for Kyrovia response');

@@ -144,6 +144,10 @@ export function getDirectApiBaseUrl() {
   return resolveDirectApiBaseUrl();
 }
 
+function shouldUseDirectGenerationStream() {
+  return Boolean(resolveDirectApiBaseUrl());
+}
+
 export function candidateApiBaseUrls() {
   const directApiBaseUrl = resolveDirectApiBaseUrl();
   const urls = [
@@ -990,6 +994,39 @@ export function sendMessage(
   const generationRequestId = createGenerationRequestId();
 
   const finishAsyncGeneration = async (submitOptions) => {
+    if (shouldUseDirectGenerationStream()) {
+      options.onStatus?.({
+        event: 'accepted',
+        requestId: generationRequestId
+      });
+
+      const streamHeaders = {
+        ...(submitOptions.headers || {}),
+        Accept: 'application/x-ndjson'
+      };
+      delete streamHeaders.Prefer;
+
+      const result = await request('/chat/send', {
+        ...submitOptions,
+        headers: streamHeaders,
+        timeoutMs: AI_REQUEST_TIMEOUT_MS,
+        streamResponse: true,
+        generationRequestId,
+        onStreamEvent(event) {
+          options.onStatus?.(event);
+        },
+        onStreamMessage(response) {
+          options.onMessage?.(response);
+        },
+        onStreamComplete(response) {
+          options.onComplete?.(response);
+        }
+      });
+
+      options.onComplete?.(result);
+      return result;
+    }
+
     options.onStatus?.({
       event: 'accepted',
       requestId: generationRequestId
