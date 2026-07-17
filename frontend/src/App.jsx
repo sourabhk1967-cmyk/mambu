@@ -7,6 +7,7 @@ import {
   signOutGoogle
 } from './services/firebaseAuth';
 import {
+  ApiError,
   getStoredUser,
   getStoredToken,
   loginWithFirebaseIdToken,
@@ -45,7 +46,21 @@ function App() {
         const googleSession = await restoreGoogleSession();
 
         if (currentToken) {
-          current = await me(currentToken);
+          try {
+            current = await me(currentToken);
+          } catch (sessionError) {
+            if (sessionError instanceof ApiError && sessionError.status === 401 && googleSession?.idToken) {
+              const result = await loginWithFirebaseIdToken(googleSession.idToken);
+              currentToken = result.token;
+              current = result;
+              setStoredToken(result.token);
+              if (mounted) {
+                setToken(result.token);
+              }
+            } else {
+              throw sessionError;
+            }
+          }
 
           if (current.user?.authProvider === 'firebase-google') {
             if (!googleSession) {
