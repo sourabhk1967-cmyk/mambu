@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { readGenerationEventStream } from './api.js';
+import {
+  candidateApiBaseUrls,
+  getDirectApiBaseUrl,
+  readGenerationEventStream,
+  setDirectApiBaseUrl
+} from './api.js';
 
 function withBrowserTimers(fn) {
   const previousWindow = globalThis.window;
@@ -111,4 +116,44 @@ test('delivers an image-ready message before the completed generation event', as
     assert.deepEqual(received, ['message', 'completed']);
     assert.deepEqual(payload, imagePayload);
   });
+});
+
+test('uses a stored direct laptop API URL before the deployed API path', () => {
+  const previousWindow = globalThis.window;
+  const storage = new Map();
+
+  globalThis.window = {
+    location: {
+      origin: 'https://mambu.onrender.com',
+      search: ''
+    },
+    localStorage: {
+      getItem(key) {
+        return storage.has(key) ? storage.get(key) : null;
+      },
+      setItem(key, value) {
+        storage.set(key, String(value));
+      },
+      removeItem(key) {
+        storage.delete(key);
+      }
+    }
+  };
+
+  try {
+    const normalized = setDirectApiBaseUrl('https://kyrovia.loca.lt/');
+
+    assert.equal(normalized, 'https://kyrovia.loca.lt/api');
+    assert.equal(getDirectApiBaseUrl(), 'https://kyrovia.loca.lt/api');
+    assert.deepEqual(candidateApiBaseUrls().slice(0, 2), [
+      'https://kyrovia.loca.lt/api',
+      '/api'
+    ]);
+  } finally {
+    if (previousWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = previousWindow;
+    }
+  }
 });

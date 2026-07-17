@@ -28,6 +28,14 @@ $env:KYROVIA_PUBLIC_HEALTH_TIMEOUT_MS = '5000'
 $env:KYROVIA_TUNNEL_RESTART_MS = '3000'
 $env:KYROVIA_SUPERVISOR_CHECK_MS = '5000'
 
+if (-not $env:CORS_ORIGIN) {
+  $env:CORS_ORIGIN = 'https://mambu.onrender.com,https://mambu.in,https://www.mambu.in,http://localhost:5173'
+}
+
+if (-not $env:PUBLIC_APP_URL) {
+  $env:PUBLIC_APP_URL = 'https://mambu.onrender.com'
+}
+
 $process = Start-Process `
   -FilePath $node `
   -ArgumentList '.tunnel\start-kyrovia-supervisor.js' `

@@ -7,6 +7,7 @@ import {
 
 const viteEnv = import.meta.env || {};
 const API_BASE_URL = viteEnv.VITE_API_URL || '/api';
+const DIRECT_API_URL = viteEnv.VITE_DIRECT_API_URL || viteEnv.VITE_LAPTOP_API_URL || '';
 const DEFAULT_REQUEST_TIMEOUT_MS = 320000;
 const configuredTimeoutMs = Number(viteEnv.VITE_API_TIMEOUT_MS);
 const REQUEST_TIMEOUT_MS =
@@ -31,15 +32,109 @@ const GENERATION_STREAM_IDLE_TIMEOUT_MS =
     : DEFAULT_GENERATION_STREAM_IDLE_TIMEOUT_MS;
 const TOKEN_KEY = 'kyrovia-token';
 const USER_KEY = 'kyrovia-user';
+const DIRECT_API_URL_KEY = 'kyrovia-direct-api-url';
 const LEGACY_TOKEN_KEY = 'chatgpt-proxy-token';
 const LEGACY_USER_KEY = 'chatgpt-proxy-user';
 const TRANSIENT_API_STATUSES = new Set([0, 408, 429, 502, 503, 504, 511, 524]);
 const DEFAULT_RETRY_DELAYS_MS = [500, 1500, 3000, 6000, 10000];
 
-function candidateApiBaseUrls() {
+function normalizeApiBaseUrl(value = '') {
+  const rawValue = String(value || '').trim();
+
+  if (!rawValue) {
+    return '';
+  }
+
+  try {
+    const parsed = new URL(rawValue, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
+    parsed.hash = '';
+    parsed.search = '';
+    parsed.pathname = parsed.pathname.replace(/\/+$/, '');
+
+    if (!parsed.pathname.endsWith('/api')) {
+      parsed.pathname = `${parsed.pathname}/api`.replace(/\/+/g, '/');
+    }
+
+    return parsed.toString().replace(/\/$/, '');
+  } catch (_error) {
+    return '';
+  }
+}
+
+function readStoredDirectApiUrl() {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  try {
+    return normalizeApiBaseUrl(window.localStorage.getItem(DIRECT_API_URL_KEY));
+  } catch (_error) {
+    return '';
+  }
+}
+
+function readUrlDirectApiUrl() {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return normalizeApiBaseUrl(
+      params.get('kyroviaApiUrl') ||
+        params.get('kyrovia_api_url') ||
+        params.get('laptopApiUrl') ||
+        params.get('apiUrl')
+    );
+  } catch (_error) {
+    return '';
+  }
+}
+
+function resolveDirectApiBaseUrl() {
+  const urlValue = readUrlDirectApiUrl();
+
+  if (urlValue && typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem(DIRECT_API_URL_KEY, urlValue);
+    } catch (_error) {
+      // Runtime API override is optional; storage can be unavailable in private contexts.
+    }
+  }
+
+  return urlValue || readStoredDirectApiUrl() || normalizeApiBaseUrl(DIRECT_API_URL);
+}
+
+export function setDirectApiBaseUrl(value = '') {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  const normalized = normalizeApiBaseUrl(value);
+
+  try {
+    if (normalized) {
+      window.localStorage.setItem(DIRECT_API_URL_KEY, normalized);
+    } else {
+      window.localStorage.removeItem(DIRECT_API_URL_KEY);
+    }
+  } catch (_error) {
+    // Ignore storage failures; callers can still use the current page session.
+  }
+
+  return normalized;
+}
+
+export function getDirectApiBaseUrl() {
+  return resolveDirectApiBaseUrl();
+}
+
+export function candidateApiBaseUrls() {
+  const directApiBaseUrl = resolveDirectApiBaseUrl();
   const urls = [
+    directApiBaseUrl,
     API_BASE_URL,
-    ...(import.meta.env.DEV
+    ...(viteEnv.DEV
       ? [
           typeof window !== 'undefined' ? `http://${window.location.hostname}:5050/api` : '',
           'http://127.0.0.1:5050/api',

@@ -259,6 +259,29 @@ KYROVIA_BROWSER_WORKER_TIMEOUT_MS=1200000
 
 When both `KYROVIA_BROWSER_WORKER_URL` and `KYROVIA_BROWSER_WORKER_SECRET` are set on Render, Render skips its own Chromium startup and uses the laptop worker for `/api/chat/send`. The laptop must stay awake, connected to the internet, and signed in inside the Playwright Chromium window.
 
+### Direct laptop backend from the Render frontend
+
+If Render itself is slow, the deployed frontend can bypass Render for API calls and send chat messages directly to the laptop tunnel. Start the laptop backend with the supervised command:
+
+```powershell
+$env:PLAYWRIGHT_HEADLESS="false"
+npm run start:supervised
+```
+
+The supervised launcher allows `https://mambu.onrender.com`, `https://mambu.in`, and local Vite origins by default when `CORS_ORIGIN` is not already set. Copy the current tunnel URL from `.tunnel/active-public-url.txt`, then open the Render app once with that URL:
+
+```text
+https://mambu.onrender.com/?kyroviaApiUrl=https://kyrovia.loca.lt
+```
+
+The frontend stores the normalized API URL in browser local storage as `https://kyrovia.loca.lt/api`, so future messages from the same browser go straight to the laptop backend. To switch tunnels, open the same link with the new tunnel URL. To clear the override from the browser console:
+
+```js
+localStorage.removeItem('kyrovia-direct-api-url')
+```
+
+For a fixed deployment, set `VITE_DIRECT_API_URL` or `VITE_LAPTOP_API_URL` before building the frontend.
+
 ## Useful endpoints
 
 - `POST /api/auth/firebase`: exchange a Firebase Google token for a Kyrovia session
