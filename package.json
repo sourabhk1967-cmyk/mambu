@@ -10,6 +10,8 @@
     "build": "npm --prefix frontend install --include=dev && npm --prefix frontend run build",
     "build:render": "npm run install:render && npm --prefix backend run playwright:install && npm run build",
     "build:netlify": "npm --prefix frontend install && npm --prefix frontend run build",
+    "deploy": "npm run build && wrangler deploy",
+    "preview": "npm run build && wrangler dev",
     "generate:secret": "node -e \"console.log(require('crypto').randomBytes(48).toString('base64url'))\"",
     "start": "npm --prefix backend start",
     "run:supervisor": "node .tunnel/start-kyrovia-supervisor.js",
