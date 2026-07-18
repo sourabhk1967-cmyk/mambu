@@ -1,3 +1,0 @@
-# Netlify API proxy to the laptop tunnel backend and SPA routes.
-/api/*  https://kyrovia.loca.lt/api/:splat  200!
-/*      /index.html                      200
