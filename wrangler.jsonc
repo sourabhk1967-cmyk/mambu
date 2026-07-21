@@ -10,7 +10,10 @@
     "directory": "frontend/dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": true
+    "run_worker_first": [
+      "/api",
+      "/api/*"
+    ]
   },
   "vars": {
     "KYROVIA_API_ORIGIN": "https://kyrovia.loca.lt"

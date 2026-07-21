@@ -39,15 +39,10 @@ const TRANSIENT_API_STATUSES = new Set([0, 408, 429, 502, 503, 504, 511, 524]);
 const DEFAULT_RETRY_DELAYS_MS = [500, 1500, 3000, 6000, 10000];
 const DEFAULT_CLOUDFLARE_DIRECT_API_URL = 'https://kyrovia.loca.lt/api';
 const HOST_DIRECT_API_URLS = {
-  'mambu.sourabhk1967.workers.dev': DEFAULT_CLOUDFLARE_DIRECT_API_URL,
   'mambu.onrender.com': 'https://kyrovia.loca.lt/api',
   'mambu.in': 'https://kyrovia.loca.lt/api',
   'www.mambu.in': 'https://kyrovia.loca.lt/api'
 };
-
-function isCloudflareWorkersHost() {
-  return typeof window !== 'undefined' && /\.workers\.dev$/i.test(window.location.hostname);
-}
 
 function normalizeApiBaseUrl(value = '') {
   const rawValue = String(value || '').trim();
@@ -115,8 +110,7 @@ function resolveDirectApiBaseUrl() {
 
   const hostedDefault =
     typeof window !== 'undefined'
-      ? HOST_DIRECT_API_URLS[window.location.hostname] ||
-        (isCloudflareWorkersHost() ? DEFAULT_CLOUDFLARE_DIRECT_API_URL : '')
+      ? HOST_DIRECT_API_URLS[window.location.hostname] || ''
       : '';
 
   return (
@@ -630,7 +624,18 @@ async function requestFromBaseUrl(baseUrl, path, options = {}) {
     }
 
     if (!response.ok) {
-      throw new ApiError(payload.message || 'Request failed', response.status, payload);
+      const cloudflareApiRouteFailed =
+        baseUrl === API_BASE_URL &&
+        response.status === 405 &&
+        /^\/auth\/firebase\/?$/.test(path);
+      throw new ApiError(
+        payload.message ||
+          (cloudflareApiRouteFailed
+            ? 'Cloudflare is serving the app shell for login instead of proxying /api/auth/firebase. Redeploy the Worker with /api/* routed to the Worker.'
+            : 'Request failed'),
+        response.status,
+        payload
+      );
     }
 
     return normalizeBackendAssets(payload, baseUrl);

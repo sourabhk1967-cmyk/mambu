@@ -17,5 +17,8 @@
     "run:supervisor": "node .tunnel/start-kyrovia-supervisor.js",
     "start:supervised": "powershell -NoProfile -ExecutionPolicy Bypass -File .tunnel/start-kyrovia-supervisor.ps1",
     "stop:supervised": "powershell -NoProfile -ExecutionPolicy Bypass -File .tunnel/stop-kyrovia-supervisor.ps1"
+  },
+  "devDependencies": {
+    "wrangler": "^4.112.0"
   }
 }
