@@ -1,4 +1,5 @@
 const { createHash } = require('crypto');
+const { EventEmitter } = require('events');
 const fs = require('fs');
 const path = require('path');
 
@@ -18,6 +19,8 @@ class GenerationResultStore {
         ? path.resolve(options.storageDir)
         : '';
     this.entries = new Map();
+    this.events = new EventEmitter();
+    this.events.setMaxListeners(0);
 
     if (this.storageDir) {
       fs.mkdirSync(this.storageDir, { recursive: true });
@@ -87,8 +90,44 @@ class GenerationResultStore {
     };
     this.entries.set(requestId, entry);
     this.persist(entry);
+    this.events.emit(this.eventName(requestId), {
+      ...entry
+    });
     this.cleanup();
     this.trim();
+  }
+
+  waitFor(requestId, owner, options = {}) {
+    const timeoutMs =
+      Number.isInteger(options.timeoutMs) && options.timeoutMs > 0 ? options.timeoutMs : 0;
+    const current = this.get(requestId, owner);
+
+    if (!timeoutMs || (current && current.status !== 'pending')) {
+      return Promise.resolve(current);
+    }
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const eventName = this.eventName(requestId);
+      const finish = (entry) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        clearTimeout(timeoutId);
+        this.events.off(eventName, onSettled);
+        resolve(entry && entry.owner === owner ? { ...entry } : null);
+      };
+      const onSettled = (entry) => finish(entry);
+      const timeoutId = setTimeout(() => finish(this.get(requestId, owner)), timeoutMs);
+
+      this.events.on(eventName, onSettled);
+      const latest = this.get(requestId, owner);
+      if (latest && latest.status !== 'pending') {
+        finish(latest);
+      }
+    });
   }
 
   cleanup(now = Date.now()) {
@@ -124,6 +163,10 @@ class GenerationResultStore {
 
     const filename = `${createHash('sha256').update(String(requestId)).digest('hex')}.json`;
     return path.join(this.storageDir, filename);
+  }
+
+  eventName(requestId) {
+    return `generation:${String(requestId || '')}`;
   }
 
   persist(entry) {

@@ -54,3 +54,35 @@ test('recovers a completed generation from disk after a process restart', () => 
     fs.rmSync(storageDir, { force: true, recursive: true });
   }
 });
+
+test('waits for a pending generation to complete for the same owner', async () => {
+  const store = new GenerationResultStore();
+  const payload = {
+    message: 'Delivered immediately after backend completion',
+    messageFormat: 'backend-markdown'
+  };
+
+  store.start('request-wait', 'user-a');
+  const waiter = store.waitFor('request-wait', 'user-a', { timeoutMs: 1000 });
+
+  setTimeout(() => {
+    store.complete('request-wait', 'user-a', payload);
+  }, 1);
+
+  const result = await waiter;
+
+  assert.equal(result.status, 'completed');
+  assert.deepEqual(result.payload, payload);
+});
+
+test('does not deliver a waited generation to a different owner', async () => {
+  const store = new GenerationResultStore();
+
+  store.start('request-private', 'user-a');
+  const waiter = store.waitFor('request-private', 'user-b', { timeoutMs: 20 });
+  store.complete('request-private', 'user-a', {
+    message: 'Private reply'
+  });
+
+  assert.equal(await waiter, null);
+});

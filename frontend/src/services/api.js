@@ -20,7 +20,8 @@ const AI_REQUEST_TIMEOUT_MS =
     : DEFAULT_AI_REQUEST_TIMEOUT_MS;
 const GENERATION_RECOVERY_POLL_MS = 100;
 const GENERATION_RECOVERY_TIMEOUT_MS = 10 * 60 * 1000;
-const GENERATION_PARALLEL_RECOVERY_DELAY_MS = 6000;
+const GENERATION_PARALLEL_RECOVERY_DELAY_MS = 1;
+const GENERATION_RESULT_LONG_POLL_MS = 25000;
 const DEFAULT_GENERATION_STREAM_IDLE_TIMEOUT_MS = 90 * 1000;
 const configuredGenerationStreamIdleTimeoutMs = Number(
   viteEnv.VITE_GENERATION_STREAM_IDLE_TIMEOUT_MS
@@ -438,13 +439,23 @@ function createGenerationRequestId() {
   return `kyrovia-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-async function fetchGenerationResult(baseUrl, requestId, headers) {
+async function fetchGenerationResult(baseUrl, requestId, headers, options = {}) {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 3000);
+  const waitMs =
+    Number.isFinite(options.waitMs) && options.waitMs > 0
+      ? Math.min(Math.trunc(options.waitMs), GENERATION_RESULT_LONG_POLL_MS)
+      : 0;
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    waitMs ? waitMs + 5000 : 3000
+  );
 
   try {
     const response = await fetch(
-      requestUrl(baseUrl, `/chat/results/${encodeURIComponent(requestId)}`),
+      requestUrl(
+        baseUrl,
+        `/chat/results/${encodeURIComponent(requestId)}${waitMs ? `?waitMs=${waitMs}` : ''}`
+      ),
       {
         method: 'GET',
         headers: {
@@ -494,7 +505,9 @@ async function recoverGenerationResult(baseUrls, requestId, options = {}) {
 
     for (const baseUrl of baseUrls) {
       try {
-        const payload = await fetchGenerationResult(baseUrl, requestId, headers);
+        const payload = await fetchGenerationResult(baseUrl, requestId, headers, {
+          waitMs: GENERATION_RESULT_LONG_POLL_MS
+        });
 
         if (payload) {
           return payload;
@@ -510,7 +523,7 @@ async function recoverGenerationResult(baseUrls, requestId, options = {}) {
       }
     }
 
-    await wait(foundPendingResult ? GENERATION_RECOVERY_POLL_MS : 400);
+    await wait(foundPendingResult ? GENERATION_RECOVERY_POLL_MS : 50);
   }
 
   throw new ApiError(

@@ -45,6 +45,7 @@ const MULTIPART_FILE_FIELD = 'files';
 const DEFAULT_MODEL_ID = 'nova-instant';
 const SCHEDULED_TASK_INTENT = 'scheduled-task';
 const JSON_HEARTBEAT_INTERVAL_MS = 4000;
+const GENERATION_RESULT_LONG_POLL_MAX_MS = 30000;
 const DELIVERY_REQUEST_ID_RE = /^[a-z0-9][a-z0-9_-]{15,127}$/i;
 const SUPPORTED_MODEL_IDS = new Set(['nova-instant', 'nova-thinking', 'nova-agent', 'nova-agent-swarm']);
 const IMAGE_EXTENSION_RE = /\.(png|jpe?g|webp|gif|bmp|svg|avif|heic|heif|tiff?)$/i;
@@ -1103,11 +1104,28 @@ router.delete('/device-usage', async (req, res, next) => {
   }
 });
 
-router.get('/results/:requestId', (req, res) => {
+function normalizeResultWaitMs(value) {
+  const waitMs = Number(value);
+
+  if (!Number.isFinite(waitMs) || waitMs <= 0) {
+    return 0;
+  }
+
+  return Math.min(Math.trunc(waitMs), GENERATION_RESULT_LONG_POLL_MAX_MS);
+}
+
+router.get('/results/:requestId', async (req, res) => {
   const requestId = String(req.params.requestId || '').trim();
-  const result = generationResults.get(requestId, req.user.username);
+  const waitMs = normalizeResultWaitMs(req.query?.waitMs);
+  let result = generationResults.get(requestId, req.user.username);
 
   res.set('Cache-Control', 'no-store');
+
+  if (result?.status === 'pending' && waitMs) {
+    result = await generationResults.waitFor(requestId, req.user.username, {
+      timeoutMs: waitMs
+    });
+  }
 
   if (!result) {
     res.status(404).json({
