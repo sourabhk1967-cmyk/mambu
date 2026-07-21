@@ -47,6 +47,19 @@ const whatsappManager = new WhatsAppManager(config.whatsapp, {
 const frontendDist = path.resolve(__dirname, '../frontend/dist');
 const hasFrontendBuild = fs.existsSync(path.join(frontendDist, 'index.html'));
 
+function isTrustedTunnelOrigin(origin = '') {
+  try {
+    const { protocol, hostname } = new URL(origin);
+
+    return (
+      protocol === 'https:' &&
+      (/\.loca\.lt$/i.test(hostname) || /\.trycloudflare\.com$/i.test(hostname))
+    );
+  } catch (_error) {
+    return false;
+  }
+}
+
 app.locals.chatgpt = chatgpt;
 app.locals.config = config;
 app.locals.whatsappManager = whatsappManager;
@@ -75,7 +88,13 @@ app.use((req, res, next) => {
     config.server.publicAppUrl
   ].filter(Boolean);
 
-  if (!origin || origin === requestOrigin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+  if (
+    !origin ||
+    origin === requestOrigin ||
+    allowedOrigins.includes('*') ||
+    allowedOrigins.includes(origin) ||
+    isTrustedTunnelOrigin(origin)
+  ) {
     cors({
       origin: origin || false,
       credentials: true,
