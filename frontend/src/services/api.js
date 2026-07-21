@@ -39,12 +39,15 @@ const LEGACY_USER_KEY = 'chatgpt-proxy-user';
 const TRANSIENT_API_STATUSES = new Set([0, 408, 429, 502, 503, 504, 511, 524]);
 const DEFAULT_RETRY_DELAYS_MS = [500, 1500, 3000, 6000, 10000];
 const DEFAULT_CLOUDFLARE_DIRECT_API_URL = 'https://kyrovia.loca.lt/api';
+const RUNTIME_CONFIG_PATH = '/.well-known/kyrovia-runtime.json';
 const HOST_DIRECT_API_URLS = {
   'mambu.sourabhk1967.workers.dev': DEFAULT_CLOUDFLARE_DIRECT_API_URL,
   'mambu.onrender.com': 'https://kyrovia.loca.lt/api',
   'mambu.in': 'https://kyrovia.loca.lt/api',
   'www.mambu.in': 'https://kyrovia.loca.lt/api'
 };
+let discoveredDirectApiBaseUrl = '';
+let directApiDiscoveryPromise = null;
 
 function normalizeApiBaseUrl(value = '') {
   const rawValue = String(value || '').trim();
@@ -118,9 +121,55 @@ function resolveDirectApiBaseUrl() {
   return (
     urlValue ||
     readStoredDirectApiUrl() ||
+    discoveredDirectApiBaseUrl ||
     normalizeApiBaseUrl(DIRECT_API_URL) ||
     normalizeApiBaseUrl(hostedDefault)
   );
+}
+
+async function discoverDirectApiBaseUrl() {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  if (discoveredDirectApiBaseUrl || readUrlDirectApiUrl() || readStoredDirectApiUrl()) {
+    return resolveDirectApiBaseUrl();
+  }
+
+  if (!directApiDiscoveryPromise) {
+    directApiDiscoveryPromise = fetch(`${RUNTIME_CONFIG_PATH}?t=${Date.now()}`, {
+      headers: {
+        Accept: 'application/json'
+      },
+      cache: 'no-store'
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          return '';
+        }
+
+        const payload = await response.json().catch(() => ({}));
+        const normalized = normalizeApiBaseUrl(payload?.apiBaseUrl || payload?.apiUrl);
+
+        if (normalized) {
+          discoveredDirectApiBaseUrl = normalized;
+
+          try {
+            window.localStorage.setItem(DIRECT_API_URL_KEY, normalized);
+          } catch (_error) {
+            // Runtime discovery still works for this page load when storage fails.
+          }
+        }
+
+        return normalized;
+      })
+      .catch(() => '')
+      .finally(() => {
+        directApiDiscoveryPromise = null;
+      });
+  }
+
+  return directApiDiscoveryPromise;
 }
 
 export function setDirectApiBaseUrl(value = '') {
@@ -677,6 +726,8 @@ async function requestFromBaseUrl(baseUrl, path, options = {}) {
 }
 
 async function request(path, options = {}) {
+  await discoverDirectApiBaseUrl();
+
   if (
     options.streamResponse &&
     options.generationRequestId &&

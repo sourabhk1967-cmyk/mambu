@@ -46,6 +46,25 @@ const whatsappManager = new WhatsAppManager(config.whatsapp, {
 });
 const frontendDist = path.resolve(__dirname, '../frontend/dist');
 const hasFrontendBuild = fs.existsSync(path.join(frontendDist, 'index.html'));
+const tunnelActivePublicUrlFile = path.resolve(__dirname, '../.tunnel/active-public-url.txt');
+
+function readActivePublicApiUrl() {
+  try {
+    const publicUrl = fs.readFileSync(tunnelActivePublicUrlFile, 'utf8').trim();
+
+    if (!publicUrl) {
+      return '';
+    }
+
+    const parsedUrl = new URL(publicUrl);
+    parsedUrl.pathname = '/api';
+    parsedUrl.search = '';
+    parsedUrl.hash = '';
+    return parsedUrl.toString().replace(/\/$/, '');
+  } catch (_error) {
+    return '';
+  }
+}
 
 function isTrustedTunnelOrigin(origin = '') {
   try {
@@ -118,6 +137,29 @@ app.use((req, res, next) => {
   res.status(403).json({ message: `Origin ${origin} is not allowed by CORS` });
 });
 app.use(express.json({ limit: config.server.jsonLimit }));
+
+app.use((req, res, next) => {
+  try {
+    const decodedPath = decodeURIComponent(req.path);
+
+    if (/^\/api\/health\s*->/i.test(decodedPath)) {
+      res.redirect(302, '/api/health');
+      return;
+    }
+  } catch (_error) {
+    // If a malformed URL cannot be decoded, let Express return the normal 404.
+  }
+
+  next();
+});
+
+app.get('/.well-known/kyrovia-runtime.json', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    apiBaseUrl: readActivePublicApiUrl(),
+    checkedAt: new Date().toISOString()
+  });
+});
 
 const apiLimiter = rateLimit({
   windowMs: config.server.rateLimitWindowMs,

@@ -4,6 +4,21 @@ function apiOrigin(env) {
   return String(env.KYROVIA_API_ORIGIN || DEFAULT_API_ORIGIN).replace(/\/+$/, '');
 }
 
+function apiBaseUrl(env) {
+  return `${apiOrigin(env)}/api`;
+}
+
+function jsonResponse(payload, init = {}) {
+  const headers = new Headers(init.headers || {});
+  headers.set('content-type', 'application/json; charset=utf-8');
+  headers.set('cache-control', 'no-store');
+
+  return new Response(JSON.stringify(payload), {
+    ...init,
+    headers
+  });
+}
+
 function createProxyRequest(request, targetUrl) {
   const headers = new Headers(request.headers);
   headers.delete('host');
@@ -42,6 +57,13 @@ export default {
 
     if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
       return proxyApiRequest(request, env);
+    }
+
+    if (url.pathname === '/.well-known/kyrovia-runtime.json') {
+      return jsonResponse({
+        apiBaseUrl: apiBaseUrl(env),
+        checkedAt: new Date().toISOString()
+      });
     }
 
     return env.ASSETS.fetch(request);
